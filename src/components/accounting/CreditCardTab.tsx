@@ -7,7 +7,7 @@ import { getNationalId, saveNationalId } from '../../lib/idStorage';
 import { fetchRecentCreditCardEmails } from '../../lib/gmailApi';
 
 export default function CreditCardTab() {
-  const { token, activeFolderId: folderId } = useAuth();
+  const { token, activeFolderId: folderId, userInfo } = useAuth();
   
   const [records, setRecords] = useState<CreditCardRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -148,7 +148,8 @@ export default function CreditCardTab() {
             bank: b.bank,
             amount: b.amount || 0,
             note: b.needsManualAmount ? '自動匯入，請手動確認金額' : '由 Gmail 自動匯入',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            owner: userInfo?.name || undefined
           });
         }
       });
@@ -186,7 +187,8 @@ export default function CreditCardTab() {
       bank,
       amount: Number(amount),
       note,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      owner: userInfo?.name || undefined
     };
     
     const updatedRecords = [newRecord, ...records];
@@ -413,6 +415,11 @@ export default function CreditCardTab() {
                                       onBlur={handleSaveSync}
                                       style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'white', padding: '2px 4px', borderRadius: '4px', fontSize: '1rem', fontWeight: 'bold', width: '100px' }}
                                     />
+                                    {r.owner && (
+                                      <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '12px', color: 'var(--accent-primary)', marginLeft: '4px' }}>
+                                        {r.owner}
+                                      </span>
+                                    )}
                                   </div>
                                   {r.note && (
                                     <div style={{ fontSize: '0.85rem', color: r.note.includes('請手動') ? 'var(--danger)' : 'var(--text-secondary)', marginTop: '0.25rem' }}>
@@ -433,7 +440,7 @@ export default function CreditCardTab() {
                                           handleEditRecord(r.id, 'amount', val === '-' ? '-' : Number(val));
                                         }
                                       }}
-                                      onBlur={(e) => {
+                                      onBlur={() => {
                                         if (r.amount === '-' as any) handleEditRecord(r.id, 'amount', 0);
                                         handleSaveSync();
                                       }}

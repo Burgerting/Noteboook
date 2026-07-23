@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { verifyFolderAccess } from '../lib/drive';
-import { Folder, X, Loader2, Link } from 'lucide-react';
+import { Folder, X, Loader2 } from 'lucide-react';
 import { useDrivePicker } from '../hooks/useDrivePicker';
 
 interface Props {

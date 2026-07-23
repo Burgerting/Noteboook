@@ -7,8 +7,14 @@ export interface SharedFolder {
   customName?: string;
 }
 
+export interface UserInfo {
+  name: string;
+  email: string;
+}
+
 interface AuthContextType {
   token: string | null;
+  userInfo: UserInfo | null;
   personalFolderId: string | null;
   sharedFolders: SharedFolder[];
   activeFolderId: string | null; // Currently selected notebook
@@ -26,6 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null);
+  const [userInfo, setUserInfoState] = useState<UserInfo | null>(null);
   const [personalFolderId, setPersonalFolderIdState] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderIdState] = useState<string | null>(null);
   const [sharedFolders, setSharedFoldersState] = useState<SharedFolder[]>([]);
@@ -33,11 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Load state from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('google_token');
+    const savedUserInfo = localStorage.getItem('google_user_info');
     const savedPersonal = localStorage.getItem('personal_folder_id');
     const savedActive = localStorage.getItem('active_folder_id');
     const savedShared = localStorage.getItem('shared_folders');
 
     if (savedToken) setTokenState(savedToken);
+    if (savedUserInfo) {
+      try {
+        setUserInfoState(JSON.parse(savedUserInfo));
+      } catch (e) {
+        console.error('Failed to parse user info', e);
+      }
+    }
     if (savedPersonal) setPersonalFolderIdState(savedPersonal);
     if (savedActive) setActiveFolderIdState(savedActive);
     if (savedShared) {
@@ -53,8 +68,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState(newToken);
     if (newToken) {
       localStorage.setItem('google_token', newToken);
+      // Fetch user info when token is set
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${newToken}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.name && data.email) {
+          const user = { name: data.name, email: data.email };
+          setUserInfoState(user);
+          localStorage.setItem('google_user_info', JSON.stringify(user));
+        }
+      })
+      .catch(err => console.error('Failed to fetch user info', err));
     } else {
       localStorage.removeItem('google_token');
+      localStorage.removeItem('google_user_info');
+      setUserInfoState(null);
     }
   };
 
@@ -121,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ 
       token, 
+      userInfo,
       personalFolderId, 
       sharedFolders, 
       activeFolderId,
