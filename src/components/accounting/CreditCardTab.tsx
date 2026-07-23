@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
 import { syncCreditCards } from '../../lib/accountingSync';
 import type { CreditCardRecord } from '../../lib/accountingSync';
-import { Plus, Trash2, RefreshCw, CreditCard, Mail, Key } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, CreditCard, Mail, Key, ChevronDown, ChevronUp } from 'lucide-react';
 import { getNationalId, saveNationalId } from '../../lib/idStorage';
 import { fetchRecentCreditCardEmails } from '../../lib/gmailApi';
 
@@ -13,8 +13,10 @@ export default function CreditCardTab() {
   const [isLoading, setIsLoading] = useState(false);
   
   const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
   const [showIdModal, setShowIdModal] = useState(false);
   const [inputId, setInputId] = useState('');
+  const [isFormExpanded, setIsFormExpanded] = useState(false);
   
   // Filter State
   const [filterBank, setFilterBank] = useState('all');
@@ -111,20 +113,27 @@ export default function CreditCardTab() {
 
 
   const handleScanGmail = async () => {
-    const savedId = getNationalId();
-    if (!savedId) {
-      setShowIdModal(true);
-      return;
+    try {
+      setScanError('');
+      const savedId = getNationalId();
+      if (!savedId) {
+        setShowIdModal(true);
+        return;
+      }
+      await performScan(savedId, yearMonth);
+    } catch (err) {
+      setScanError('發生錯誤：' + String(err));
     }
-    await performScan(savedId, yearMonth);
   };
 
   const performScan = async (nationalId: string, targetMonth?: string) => {
     if (!token) return;
     setIsScanning(true);
     try {
+      setScanError('');
       const bills = await fetchRecentCreditCardEmails(token, nationalId, targetMonth);
       if (bills.length === 0) {
+        setScanError(`在 ${targetMonth || '最近45天'} 內沒有找到相關的信用卡帳單信件。`);
         alert(`在 ${targetMonth || '最近45天'} 內沒有找到相關的信用卡帳單信件。`);
         return;
       }
@@ -161,6 +170,7 @@ export default function CreditCardTab() {
       alert(`成功匯入 ${bills.length} 筆帳單！如有金額抓取不完全，請直接在右側列表中填寫。`);
     } catch (e) {
       console.error(e);
+      setScanError('掃描 Gmail 失敗，請確認已授權或稍後再試。');
       alert('掃描 Gmail 失敗，請確認已授權或稍後再試。');
     } finally {
       setIsScanning(false);
@@ -270,15 +280,26 @@ export default function CreditCardTab() {
         </div>
 
         <form onSubmit={handleAdd} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>新增帳單</h3>
-            <button type="button" className="btn btn-ghost" onClick={handleScanGmail} disabled={isScanning} style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <Mail size={16} className={isScanning ? 'animate-pulse' : ''} />
-              {isScanning ? '掃描中...' : '自動掃描 Gmail'}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setIsFormExpanded(!isFormExpanded)}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              新增帳單 {isFormExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </h3>
           </div>
+
+          <button type="button" className="btn btn-ghost" onClick={(e) => { e.preventDefault(); handleScanGmail(); }} disabled={isScanning} style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem' }}>
+            <Mail size={18} className={isScanning ? 'animate-pulse' : ''} />
+            {isScanning ? '掃描中...' : '自動掃描 Gmail'}
+          </button>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {scanError && (
+            <div style={{ fontSize: '0.85rem', color: 'var(--danger)', padding: '0.5rem', backgroundColor: 'rgba(255,0,0,0.1)', borderRadius: '4px' }}>
+              {scanError}
+            </div>
+          )}
+
+          {isFormExpanded && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>帳單年月</label>
             <input 
               type="month" 
@@ -331,9 +352,11 @@ export default function CreditCardTab() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
-            <Plus size={18}/> 新增帳單
-          </button>
+              <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
+                <Plus size={18}/> 新增帳單
+              </button>
+            </div>
+          )}
         </form>
       </div>
 
