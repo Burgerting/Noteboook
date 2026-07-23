@@ -66,7 +66,7 @@ function localFsPlugin() {
 }
 
 export default defineConfig({
-  base: '/Notebooook/',
+  base: '/Noteboook/',
   plugins: [
     react(),
     localFsPlugin(),
