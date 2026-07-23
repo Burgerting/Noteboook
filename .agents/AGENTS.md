@@ -15,3 +15,17 @@
 4. **APK 打包時機 (APK Build Trigger)**
    - 絕對禁止在修改程式碼後「自動」或「預設」在背景執行 APK 打包腳本（如 `build_apk.ps1` 或 `npx cap sync android`）。
    - 只有在使用者**明確且主動要求**「請幫我打包 APK」或「更新 APK」時，才可以執行打包指令。這能避免與 Vite 預覽伺服器產生檔案鎖定 (EBUSY) 衝突，並節省系統資源。
+
+5. **自動對話紀錄 (Automatic Chat History Logging)**
+   - 在完成一個階段性任務或每日任務結束時，必須主動將當天完成的事項整理並記錄到 `.agents/chat_history.md` 檔案中，幫助專案保持完整的歷史脈絡。
+
+6. **專案發布與版本控制資訊 (GitHub / Deployment Info)**
+   - **GitHub 帳號**：`Burgerting`
+   - **專案 (Repository) 名稱**：`Noteboook`
+   - **GitHub Pages 網址**：`https://Burgerting.github.io/Noteboook/`
+   - 任何牽涉到 GitHub 上傳、Git Remote 設定或部署腳本 (如 Vite 的 `base` 路徑) 的操作，都必須無條件套用此設定，確保發布過程不會出錯。
+
+7. **發布前私密資訊檢查 (Pre-Deployment Privacy Check)**
+   - 在執行任何 `git add`、`git push` 或部署 (deploy) 指令前，必須主動檢查專案狀態與 `.gitignore` 的完整性。
+   - 確保絕對不會將任何含有私密資料的檔案或資料夾（例如 `local_drive/` 的記帳本 JSON 檔、`apk/` 的打包檔、或是包含 API 金鑰的檔案）推送到 GitHub 或公開網路。
+   - 對隱私資料保持最高警戒，預設禁止上傳任何使用者生成的個人帳務檔案。

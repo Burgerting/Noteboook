@@ -119,6 +119,7 @@ export interface CreditCardRecord {
   amount: number;
   note: string;
   timestamp: number;
+  owner?: string;
   isDeleted?: boolean;
 }
 
