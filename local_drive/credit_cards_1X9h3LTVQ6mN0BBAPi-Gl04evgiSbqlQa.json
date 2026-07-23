@@ -1,0 +1,106 @@
+[
+  {
+    "id": "f9fbc1a7-0e53-447c-9a82-0b7ee19a27d7",
+    "yearMonth": "2026-07",
+    "bank": "永豐",
+    "amount": -401,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821069830
+  },
+  {
+    "id": "60f46ada-cf90-494c-9fe2-40e5ffa76cbf",
+    "yearMonth": "2026-07",
+    "bank": "國泰",
+    "amount": 4990,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821069830
+  },
+  {
+    "id": "6dc52b64-f4df-4042-8879-58a1a10bf894",
+    "yearMonth": "2026-07",
+    "bank": "中信",
+    "amount": 63490,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821069830
+  },
+  {
+    "id": "7d4663d7-4179-4782-a82d-714ae79eadf9",
+    "yearMonth": "2026-06",
+    "bank": "永豐",
+    "amount": -401,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821083768
+  },
+  {
+    "id": "3a1c97f3-931b-4ef1-9342-fccd6defad9d",
+    "yearMonth": "2026-06",
+    "bank": "中信",
+    "amount": 176984,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821083768
+  },
+  {
+    "id": "5ed68616-a9bb-496a-ad15-54207d3fb523",
+    "yearMonth": "2026-06",
+    "bank": "國泰",
+    "amount": 1377,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821083768
+  },
+  {
+    "id": "4374fdf9-f734-45c7-83e0-a99d20834ef9",
+    "yearMonth": "2026-05",
+    "bank": "富邦",
+    "amount": 0,
+    "note": "自動匯入，請手動確認金額",
+    "timestamp": 1784821109261
+  },
+  {
+    "id": "47ebbdcd-b61f-498e-ad93-2060dea994b5",
+    "yearMonth": "2026-05",
+    "bank": "永豐",
+    "amount": 3501,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821109261
+  },
+  {
+    "id": "45bacc24-df8b-480c-98b6-87280e3478c2",
+    "yearMonth": "2026-05",
+    "bank": "中信",
+    "amount": 106658,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821109261
+  },
+  {
+    "id": "7e7eba91-afef-43af-bee2-481973c1138f",
+    "yearMonth": "2026-05",
+    "bank": "國泰",
+    "amount": 12440,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821109261
+  },
+  {
+    "id": "de6a62ad-581a-4359-9705-7df6b82c2749",
+    "yearMonth": "2026-04",
+    "bank": "中信",
+    "amount": 35001,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821132650
+  },
+  {
+    "id": "c945efab-2399-4459-848e-de1f344c36e5",
+    "yearMonth": "2026-04",
+    "bank": "永豐",
+    "amount": 1045,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821132650
+  },
+  {
+    "id": "c7a57695-f34d-4c8d-8c40-c6deedef5ca5",
+    "yearMonth": "2026-04",
+    "bank": "國泰",
+    "amount": 19014,
+    "note": "由 Gmail 自動匯入",
+    "timestamp": 1784821132650
+  }
+]
