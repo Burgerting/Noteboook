@@ -82,6 +82,7 @@ export interface FixedExpense {
   category: string;
   note: string;
   amount: number;
+  deductionDate?: number;
 }
 
 export async function getFixedExpenses(token: string, folderId: string): Promise<FixedExpense[]> {

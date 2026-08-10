@@ -20,6 +20,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [amount, setAmount] = useState('');
+  const [deductionDate, setDeductionDate] = useState('');
 
   useEffect(() => {
     if (isOpen && token && folderId) {
@@ -48,13 +49,15 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
       id: crypto.randomUUID(),
       category: category.trim(),
       note: note.trim(),
-      amount: Number(amount)
+      amount: Number(amount),
+      deductionDate: deductionDate ? Number(deductionDate) : undefined
     };
     
     setExpenses([...expenses, newExpense]);
     setCategory('');
     setNote('');
     setAmount('');
+    setDeductionDate('');
   };
 
   const handleDelete = (id: string) => {
@@ -143,6 +146,16 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
               required
               style={{ flex: 1 }}
             />
+            <input 
+              type="number" 
+              className="input-field" 
+              placeholder="扣款日(選填,1-31)" 
+              value={deductionDate}
+              onChange={(e) => setDeductionDate(e.target.value)}
+              min="1"
+              max="31"
+              style={{ width: '130px' }}
+            />
             <button type="submit" className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>
               <Plus size={18} /> 新增
             </button>
@@ -164,7 +177,10 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
               <div key={expense.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
                 <div>
                   <strong style={{ display: 'block' }}>{expense.category}</strong>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{expense.note}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    {expense.note}
+                    {expense.deductionDate && <span style={{ marginLeft: '8px', color: 'var(--primary)' }}>每月 {expense.deductionDate} 日扣款</span>}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>${expense.amount}</span>
