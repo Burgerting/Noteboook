@@ -118,7 +118,12 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
             }
 
             // Decrypt with PDF.js (中信密碼為身分證後 8 碼，其他通常為完整身分證)
-            const passwords = [nationalId, nationalId.slice(-8)];
+            const passwords = Array.from(new Set([
+              nationalId,
+              nationalId.toUpperCase(),
+              nationalId.toLowerCase(),
+              nationalId.slice(-8)
+            ]));
             let pdfDocument = null;
             let lastError = null;
             

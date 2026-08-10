@@ -147,7 +147,8 @@ export default function CreditCardTab() {
             ...updatedRecords[existingIndex],
             amount: b.amount !== null ? b.amount : updatedRecords[existingIndex].amount,
             note: b.needsManualAmount ? '自動匯入，請手動確認金額' : '由 Gmail 自動更新',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            owner: updatedRecords[existingIndex].owner || userInfo?.name || undefined
           };
         } else {
           // Add new record
@@ -514,7 +515,7 @@ export default function CreditCardTab() {
             className="input-field"
             placeholder="請輸入身分證字號 (包含大寫英文字母)"
             value={inputId}
-            onChange={(e) => setInputId(e.target.value.toUpperCase())}
+            onChange={(e) => setInputId(e.target.value)}
             style={{ width: '100%', marginBottom: '1.5rem' }}
           />
 
