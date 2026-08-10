@@ -113,7 +113,20 @@ export default function CreditCardTab() {
     };
 
     loadCache();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderId]);
+
+  // 自動清理歷史紀錄中金額為 0 的帳單
+  useEffect(() => {
+    const hasZero = records.some(r => !r.isDeleted && r.amount === 0);
+    if (hasZero) {
+      const updated = records.map(r => (!r.isDeleted && r.amount === 0) ? { ...r, isDeleted: true, timestamp: Date.now() } : r);
+      updateRecords(updated);
+      if (token && folderId) {
+        syncCreditCards(token, folderId, updated).then(updateRecords);
+      }
+    }
+  }, [records, token, folderId]);
 
 
   const handleScanGmail = async () => {

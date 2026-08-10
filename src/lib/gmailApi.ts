@@ -179,6 +179,21 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
               if (amountMatch) break;
             }
 
+            // Fallback for PDF with missing CJK fonts (like CTBC sometimes)
+            if (!amountMatch) {
+              const spacedText = textContent.items.map((item: any) => item.str.trim()).filter(Boolean).join(' ');
+              console.log(`[Gmail Debug] (${bank}) PDF 解析帶空白內容 (Fallback):`, spacedText);
+              const fallbackRegexes = [
+                // 找日期 (例如 115/08/25 或 2026/08/25) 後面緊接的第一個數字區塊 (通常是本期應繳總金額)
+                /11\d\/\d{2}\/\d{2}\s+(-?[\d,]+)/,
+                /20\d{2}\/\d{2}\/\d{2}\s+(-?[\d,]+)/
+              ];
+              for (const r of fallbackRegexes) {
+                amountMatch = spacedText.match(r);
+                if (amountMatch) break;
+              }
+            }
+
             if (amountMatch) {
               const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
               if (amount > 0) {
