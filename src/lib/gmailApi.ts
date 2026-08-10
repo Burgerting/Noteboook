@@ -78,8 +78,12 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
       const snippetAmountMatch = snippet.match(/(?:帳單金額|應繳總額|繳款金額|本期應繳金?額?|應扣款金額)[:,\s]*\$?(-?[\d,]+)/);
       if (snippetAmountMatch) {
         const amount = parseInt(snippetAmountMatch[1].replace(/,/g, ''), 10);
-        console.log(`[Gmail Debug] (${bank}) 從預覽文字抓到金額: ${amount} | 原文: ${snippet}`);
-        results.push({ bank, yearMonth, amount, needsManualAmount: false });
+        if (amount > 0) {
+          console.log(`[Gmail Debug] (${bank}) 從預覽文字抓到金額: ${amount} | 原文: ${snippet}`);
+          results.push({ bank, yearMonth, amount, needsManualAmount: false });
+        } else {
+          console.log(`[Gmail Debug] (${bank}) 從預覽文字抓到金額為 0，略過不紀錄 | 原文: ${snippet}`);
+        }
         continue;
       } else {
         console.log(`[Gmail Debug] (${bank}) 預覽文字無金額匹配 | 原文: ${snippet}`);
@@ -177,7 +181,11 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
 
             if (amountMatch) {
               const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
-              results.push({ bank, yearMonth, amount, needsManualAmount: false });
+              if (amount > 0) {
+                results.push({ bank, yearMonth, amount, needsManualAmount: false });
+              } else {
+                console.log(`[Gmail Debug] (${bank}) PDF 解析金額為 0，略過不紀錄`);
+              }
             } else {
               // Could open PDF but couldn't parse amount reliably
               results.push({ bank, yearMonth, amount: null, needsManualAmount: true });

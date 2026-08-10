@@ -38,11 +38,13 @@ export default function CreditCardTab() {
       const filename = `${cacheKey}.json`;
 
       // 1. Attempt to save to physical FS via Vite proxy (for PC usage)
-      fetch('/api/local-fs/write', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename, content: newRecords })
-      }).catch(() => console.log('Physical FS write failed (likely on mobile), falling back to localStorage'));
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        fetch('/api/local-fs/write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename, content: newRecords })
+        }).catch(() => console.log('Physical FS write failed (likely on mobile), falling back to localStorage'));
+      }
 
       // 2. Always save to localStorage as well (fallback for mobile/PWA)
       try {
@@ -79,15 +81,17 @@ export default function CreditCardTab() {
     const loadCache = async () => {
       let loaded = false;
       // 1. Try loading from physical FS first (if running on PC with Vite server)
-      try {
-        const res = await fetch(`/api/local-fs/read?filename=${filename}`);
-        if (res.ok) {
-          const parsed = await res.json();
-          setRecords(parsed);
-          loaded = true;
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        try {
+          const res = await fetch(`/api/local-fs/read?filename=${filename}`);
+          if (res.ok) {
+            const parsed = await res.json();
+            setRecords(parsed);
+            loaded = true;
+          }
+        } catch (e) {
+          // Fetch failed, probably on mobile or server not running
         }
-      } catch (e) {
-        // Fetch failed, probably on mobile or server not running
       }
 
       // 2. Fallback to localStorage
