@@ -152,12 +152,13 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
             // Try exact phrases requested by user, then fallbacks
             // Using [^\\d\\-]* to ensure we don't accidentally consume the negative sign before matching it
             const regexes = [
-              /本期應繳總金額[^\d\-]*(-?[\d,]+)/, // 永豐
-              /本期應繳總額[^\d\-]*(-?[\d,]+)/,   // 國泰
-              /帳單金額[^\d\-]*(-?[\d,]+)/,       // 中信
-              // Fallbacks for other banks:
-              /(?:本期結帳金額|應繳總金額|結帳總金額)[^\d\-]*(-?[\d,]+)/,
-              /(?<!最低)應繳[金]?額[^\d\-]*(-?[\d,]+)/,
+              /本期應繳總金額?[^\d\-]*(-?[\d,]+)/,
+              /當期帳單金額?[^\d\-]*(-?[\d,]+)/,
+              /本期應繳款?[^\d\-]*(-?[\d,]+)/,
+              /帳單金額?[^\d\-]*(-?[\d,]+)/,
+              /應繳總金額?[^\d\-]*(-?[\d,]+)/,
+              /(?:本期結帳金額|結帳總金額|應繳金額)[^\d\-]*(-?[\d,]+)/,
+              /(?<!最低)應繳(?:款|總額|金額)[^\d\-]*(-?[\d,]+)/,
               /總計[^\d\-]*(-?[\d,]+)/
             ];
             

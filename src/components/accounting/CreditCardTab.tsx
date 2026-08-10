@@ -120,7 +120,7 @@ export default function CreditCardTab() {
         setShowIdModal(true);
         return;
       }
-      await performScan(savedId, yearMonth);
+      await performScan(savedId);
     } catch (err) {
       setScanError('發生錯誤：' + String(err));
     }
@@ -148,7 +148,7 @@ export default function CreditCardTab() {
             amount: b.amount !== null ? b.amount : updatedRecords[existingIndex].amount,
             note: b.needsManualAmount ? '自動匯入，請手動確認金額' : '由 Gmail 自動更新',
             timestamp: Date.now(),
-            owner: updatedRecords[existingIndex].owner || userInfo?.name || undefined
+            owner: updatedRecords[existingIndex].owner?.trim() ? updatedRecords[existingIndex].owner : (userInfo?.name || undefined)
           };
         } else {
           // Add new record
