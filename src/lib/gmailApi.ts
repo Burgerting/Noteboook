@@ -117,9 +117,23 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
               bytes[i] = binaryString.charCodeAt(i);
             }
 
-            // Decrypt with PDF.js
-            const loadingTask = pdfjsLib.getDocument({ data: bytes, password: nationalId });
-            const pdfDocument = await loadingTask.promise;
+            // Decrypt with PDF.js (中信密碼為身分證後 8 碼，其他通常為完整身分證)
+            const passwords = [nationalId, nationalId.slice(-8)];
+            let pdfDocument = null;
+            let lastError = null;
+            
+            for (const pwd of passwords) {
+              try {
+                const loadingTask = pdfjsLib.getDocument({ data: bytes, password: pwd });
+                pdfDocument = await loadingTask.promise;
+                break; // 成功解密
+              } catch (err) {
+                lastError = err;
+              }
+            }
+
+            if (!pdfDocument) throw lastError;
+
             
             // Extract text from the first page (usually enough for total amount)
             const page = await pdfDocument.getPage(1);
