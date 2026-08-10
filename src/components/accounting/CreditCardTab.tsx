@@ -120,7 +120,7 @@ export default function CreditCardTab() {
         setShowIdModal(true);
         return;
       }
-      await performScan(savedId);
+      await performScan(savedId, yearMonth);
     } catch (err) {
       setScanError('發生錯誤：' + String(err));
     }
