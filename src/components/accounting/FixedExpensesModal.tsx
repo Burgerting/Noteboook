@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, Save, Archive } from 'lucide-react';
+import { useAuth } from '../../store/AuthContext';
 import { getFixedExpenses, saveFixedExpenses } from '../../lib/accountingSync';
 import type { FixedExpense } from '../../lib/accountingSync';
 
@@ -11,6 +12,7 @@ interface FixedExpensesModalProps {
 }
 
 export default function FixedExpensesModal({ isOpen, onClose, token, folderId }: FixedExpensesModalProps) {
+  const { userInfo } = useAuth();
   const [expenses, setExpenses] = useState<FixedExpense[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,7 +52,8 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
       category: category.trim(),
       note: note.trim(),
       amount: Number(amount),
-      deductionDate: deductionDate ? Number(deductionDate) : undefined
+      deductionDate: deductionDate ? Number(deductionDate) : undefined,
+      creator: userInfo?.name || undefined
     };
     
     setExpenses([...expenses, newExpense]);
@@ -207,6 +210,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
                       {expense.note}
                       {expense.deductionDate && <span style={{ marginLeft: '8px', color: 'var(--primary)' }}>每月 {expense.deductionDate} 日扣款</span>}
                       {isStopped && <span style={{ marginLeft: '8px', color: 'var(--warning)' }}>(已於 {expense.endDate} 停止)</span>}
+                      {expense.creator && <span style={{ marginLeft: '8px', color: 'var(--accent-primary)', fontSize: '0.75rem', border: '1px solid var(--accent-primary)', padding: '0 4px', borderRadius: '4px' }}>@{expense.creator}</span>}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

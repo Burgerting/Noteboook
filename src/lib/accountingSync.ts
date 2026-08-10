@@ -10,6 +10,7 @@ export interface AccountingRecord {
   timestamp: number; // For merging resolution
   isFixed?: boolean;
   isCreditCard?: boolean;
+  creator?: string;
 }
 
 // Generate filename based on date (e.g., "2026-07-accounting.json")
@@ -84,6 +85,7 @@ export interface FixedExpense {
   amount: number;
   deductionDate?: number;
   endDate?: string;
+  creator?: string;
 }
 
 export async function getFixedExpenses(token: string, folderId: string): Promise<FixedExpense[]> {
@@ -111,6 +113,45 @@ export async function saveFixedExpenses(token: string, folderId: string, expense
     await updateFile(token, fileInfo.id, jsonContent, 'application/json');
   } else {
     await createFile(token, folderId, 'fixed_expenses.json', jsonContent, 'application/json');
+  }
+}
+
+export interface Installment {
+  id: string;
+  category: string;
+  note: string;
+  totalAmount: number;
+  terms: number;
+  interestRate: number;
+  startDate: string; // YYYY-MM
+  creator?: string;
+}
+
+export async function getInstallments(token: string, folderId: string): Promise<Installment[]> {
+  const files = await listFilesInFolder(token, folderId);
+  const fileInfo = files.find(f => f.name === 'installments.json');
+  
+  if (fileInfo) {
+    const content = await readFileContent(token, fileInfo.id);
+    try {
+      return JSON.parse(content);
+    } catch (e) {
+      console.error('Failed to parse installments', e);
+      return [];
+    }
+  }
+  return [];
+}
+
+export async function saveInstallments(token: string, folderId: string, installments: Installment[]): Promise<void> {
+  const files = await listFilesInFolder(token, folderId);
+  const fileInfo = files.find(f => f.name === 'installments.json');
+  const jsonContent = JSON.stringify(installments, null, 2);
+  
+  if (fileInfo) {
+    await updateFile(token, fileInfo.id, jsonContent, 'application/json');
+  } else {
+    await createFile(token, folderId, 'installments.json', jsonContent, 'application/json');
   }
 }
 

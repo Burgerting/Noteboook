@@ -5,13 +5,14 @@ import type { AccountingRecord } from '../../lib/accountingSync';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, Download, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
 import FixedExpensesModal from './FixedExpensesModal';
+import InstallmentsModal from './InstallmentsModal';
 import CreditCardTab from './CreditCardTab';
-import { getFixedExpenses } from '../../lib/accountingSync';
+import { getFixedExpenses, getInstallments } from '../../lib/accountingSync';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function AccountingApp() {
-  const { token, activeFolderId: folderId } = useAuth();
+  const { token, activeFolderId: folderId, userInfo } = useAuth();
   
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
@@ -21,6 +22,7 @@ export default function AccountingApp() {
   const [records, setRecords] = useState<AccountingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFixedExpensesModalOpen, setIsFixedExpensesModalOpen] = useState(false);
+  const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false);
   const [isFormExpanded, setIsFormExpanded] = useState(false);
   
   // Form State
@@ -75,7 +77,8 @@ export default function AccountingApp() {
       note,
       timestamp: Date.now(),
       isFixed,
-      isCreditCard
+      isCreditCard,
+      creator: userInfo?.name || undefined
     };
     
     const updatedRecords = [newRecord, ...records];
@@ -89,6 +92,83 @@ export default function AccountingApp() {
     if (token && folderId) {
       const fileName = getMonthFileName(currentMonth);
       syncAccountingRecords(token, folderId, fileName, updatedRecords).then(setRecords);
+    }
+  };
+
+  const handleImportInstallments = async () => {
+    if (!token || !folderId) return;
+    try {
+      const installments = await getInstallments(token, folderId);
+      if (installments.length === 0) {
+        alert('您還沒有設定任何分期項目，或是雲端仍在同步中。\n請確認您有在「管理分期」中點擊「新增」並「儲存」。');
+        return;
+      }
+      
+      let hasDuplicate = false;
+      
+      const validInsts = installments.filter(inst => {
+        if (currentMonth < inst.startDate) return false;
+        const start = new Date(inst.startDate + '-01');
+        const now = new Date(currentMonth + '-01');
+        let months = (now.getFullYear() - start.getFullYear()) * 12;
+        months -= start.getMonth();
+        months += now.getMonth();
+        const currentTerm = months + 1;
+        return currentTerm > 0 && currentTerm <= inst.terms;
+      });
+
+      const newRecords = validInsts.filter(inst => {
+        const start = new Date(inst.startDate + '-01');
+        const now = new Date(currentMonth + '-01');
+        let months = (now.getFullYear() - start.getFullYear()) * 12;
+        months -= start.getMonth();
+        months += now.getMonth();
+        const currentTerm = months + 1;
+
+        const amountPerTerm = Math.round((inst.totalAmount * (1 + inst.interestRate / 100)) / inst.terms);
+        const termNote = `(第 ${currentTerm}/${inst.terms} 期)`;
+        const finalNote = inst.note ? `${inst.note} ${termNote}` : termNote;
+
+        const isDuplicate = records.some(r => r.category === inst.category && r.note === finalNote && r.amount === amountPerTerm && r.type === 'expense');
+        if (isDuplicate) hasDuplicate = true;
+        return !isDuplicate;
+      }).map(inst => {
+        const start = new Date(inst.startDate + '-01');
+        const now = new Date(currentMonth + '-01');
+        let months = (now.getFullYear() - start.getFullYear()) * 12;
+        months -= start.getMonth();
+        months += now.getMonth();
+        const currentTerm = months + 1;
+        const amountPerTerm = Math.round((inst.totalAmount * (1 + inst.interestRate / 100)) / inst.terms);
+        const termNote = `(第 ${currentTerm}/${inst.terms} 期)`;
+        const finalNote = inst.note ? `${inst.note} ${termNote}` : termNote;
+
+        return {
+          id: crypto.randomUUID(),
+          date: new Date().toISOString().split('T')[0],
+          type: 'expense' as const,
+          amount: amountPerTerm,
+          category: inst.category,
+          note: finalNote,
+          timestamp: Date.now(),
+          isFixed: true, // 顯示在固定支出/分期區塊
+          creator: userInfo?.name || undefined
+        };
+      });
+
+      if (hasDuplicate) {
+        alert('提示：發現有相同名稱與期數的分期項目已經存在於本月帳單中，為避免重複，系統已自動略過。');
+      }
+
+      if (newRecords.length === 0) return;
+
+      const updatedRecords = [...newRecords, ...records];
+      setRecords(updatedRecords);
+      const fileName = getMonthFileName(currentMonth);
+      syncAccountingRecords(token, folderId, fileName, updatedRecords).then(setRecords);
+    } catch (err) {
+      console.error(err);
+      alert('匯入分期失敗');
     }
   };
 
@@ -127,7 +207,8 @@ export default function AccountingApp() {
         category: f.category,
         note: f.note,
         timestamp: Date.now(),
-        isFixed: true
+        isFixed: true,
+        creator: userInfo?.name || undefined
       }));
 
       if (hasDuplicate) {
@@ -179,7 +260,12 @@ export default function AccountingApp() {
           <strong>{r.category}</strong>
           <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{r.date}</span>
         </div>
-        {r.note && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{r.note}</div>}
+        {(r.note || r.creator) && (
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            {r.note}
+            {r.creator && <span style={{ marginLeft: '8px', color: 'var(--accent-primary)', fontSize: '0.75rem', border: '1px solid var(--accent-primary)', padding: '0 4px', borderRadius: '4px' }}>@{r.creator}</span>}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <span style={{ fontWeight: 'bold', color: r.type === 'income' ? '#ef4444' : '#10b981' }}>
@@ -252,12 +338,18 @@ export default function AccountingApp() {
               Sync
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button className="btn btn-ghost" onClick={handleImportFixedExpenses} style={{ fontSize: '0.9rem' }}>
               <Download size={16} /> 匯入固定支出
             </button>
+            <button className="btn btn-ghost" onClick={handleImportInstallments} style={{ fontSize: '0.9rem' }}>
+              <Download size={16} /> 匯入分期
+            </button>
             <button className="btn btn-ghost" onClick={() => setIsFixedExpensesModalOpen(true)} style={{ fontSize: '0.9rem' }}>
               <Settings size={16} /> 管理固定支出
+            </button>
+            <button className="btn btn-ghost" onClick={() => setIsInstallmentsModalOpen(true)} style={{ fontSize: '0.9rem' }}>
+              <Settings size={16} /> 管理分期
             </button>
           </div>
         </div>
@@ -409,6 +501,14 @@ export default function AccountingApp() {
         <FixedExpensesModal 
           isOpen={isFixedExpensesModalOpen}
           onClose={() => setIsFixedExpensesModalOpen(false)}
+          token={token}
+          folderId={folderId}
+        />
+      )}
+      {token && folderId && (
+        <InstallmentsModal
+          isOpen={isInstallmentsModalOpen}
+          onClose={() => setIsInstallmentsModalOpen(false)}
           token={token}
           folderId={folderId}
         />
