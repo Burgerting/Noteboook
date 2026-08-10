@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Loader2, Save } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, Save, Archive } from 'lucide-react';
 import { getFixedExpenses, saveFixedExpenses } from '../../lib/accountingSync';
 import type { FixedExpense } from '../../lib/accountingSync';
 
@@ -61,8 +61,28 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
   };
 
   const handleDelete = (id: string) => {
-    setExpenses(expenses.filter(e => e.id !== id));
+    if (window.confirm('確定要永久刪除此固定支出範本嗎？(不會影響過去已匯入的帳單)')) {
+      setExpenses(expenses.filter(e => e.id !== id));
+    }
   };
+
+  const handleStop = (id: string) => {
+    const d = new Date();
+    const currentYM = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const endDate = window.prompt('確定要停止這筆固定支出嗎？請輸入最後一次繳費的年月份 (例如: 2026-08)', currentYM);
+    if (endDate && /^\d{4}-\d{2}$/.test(endDate)) {
+      setExpenses(expenses.map(e => e.id === id ? { ...e, endDate } : e));
+    } else if (endDate) {
+      alert('格式錯誤，請輸入 YYYY-MM');
+    }
+  };
+
+  const sortedExpenses = [...expenses].sort((a, b) => {
+    if (a.category !== b.category) {
+      return a.category.localeCompare(b.category);
+    }
+    return b.amount - a.amount; // 同類別時金額大到小排序
+  });
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -168,32 +188,50 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
             <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
               <Loader2 className="animate-spin" />
             </div>
-          ) : expenses.length === 0 ? (
+          ) : sortedExpenses.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
               尚未設定任何固定支出
             </div>
           ) : (
-            expenses.map(expense => (
-              <div key={expense.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
-                <div>
-                  <strong style={{ display: 'block' }}>{expense.category}</strong>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {expense.note}
-                    {expense.deductionDate && <span style={{ marginLeft: '8px', color: 'var(--primary)' }}>每月 {expense.deductionDate} 日扣款</span>}
-                  </span>
+            sortedExpenses.map(expense => {
+              const isStopped = !!expense.endDate;
+              return (
+                <div key={expense.id} style={{ 
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', 
+                  backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem',
+                  opacity: isStopped ? 0.5 : 1
+                }}>
+                  <div>
+                    <strong style={{ display: 'block', textDecoration: isStopped ? 'line-through' : 'none' }}>{expense.category}</strong>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {expense.note}
+                      {expense.deductionDate && <span style={{ marginLeft: '8px', color: 'var(--primary)' }}>每月 {expense.deductionDate} 日扣款</span>}
+                      {isStopped && <span style={{ marginLeft: '8px', color: 'var(--warning)' }}>(已於 {expense.endDate} 停止)</span>}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>${expense.amount}</span>
+                    <button 
+                      onClick={() => handleStop(expense.id)}
+                      className="btn btn-ghost" 
+                      style={{ padding: '0.25rem' }}
+                      title="停止/封存此支出"
+                      disabled={isStopped}
+                    >
+                      <Archive size={16} color={isStopped ? "gray" : "var(--warning)"} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(expense.id)}
+                      className="btn btn-ghost" 
+                      style={{ padding: '0.25rem' }}
+                      title="永久刪除範本"
+                    >
+                      <Trash2 size={16} color="var(--danger)" />
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>${expense.amount}</span>
-                  <button 
-                    onClick={() => handleDelete(expense.id)}
-                    className="btn btn-ghost" 
-                    style={{ padding: '0.25rem' }}
-                  >
-                    <Trash2 size={16} color="var(--danger)" />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

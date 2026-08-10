@@ -112,7 +112,10 @@ export default function AccountingApp() {
       }
       
       let hasDuplicate = false;
-      const newRecords = fixed.filter(f => {
+      // 過濾掉已經停止的支出（若 currentMonth 大於 endDate 則不匯入）
+      const validFixed = fixed.filter(f => !f.endDate || currentMonth <= f.endDate);
+
+      const newRecords = validFixed.filter(f => {
         const isDuplicate = records.some(r => r.category === f.category && r.note === f.note && r.amount === f.amount && r.type === 'expense');
         if (isDuplicate) hasDuplicate = true;
         return !isDuplicate;
