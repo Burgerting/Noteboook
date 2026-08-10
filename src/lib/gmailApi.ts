@@ -130,7 +130,13 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
             
             for (const pwd of passwords) {
               try {
-                const loadingTask = pdfjsLib.getDocument({ data: bytes, password: pwd });
+                const CMAP_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`;
+                const loadingTask = pdfjsLib.getDocument({ 
+                  data: bytes, 
+                  password: pwd,
+                  cMapUrl: CMAP_URL,
+                  cMapPacked: true
+                });
                 pdfDocument = await loadingTask.promise;
                 break; // 成功解密
               } catch (err) {
