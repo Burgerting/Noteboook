@@ -158,8 +158,18 @@ export default function AccountingApp() {
   const displayGeneralRecords = selectedCategory ? generalRecords.filter(r => r.category === selectedCategory) : generalRecords;
   const displayFixedRecords = selectedCategory ? fixedRecords.filter(r => r.category === selectedCategory) : fixedRecords;
   
-  const sortedGeneralRecords = [...displayGeneralRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.timestamp - b.timestamp);
-  const sortedFixedRecords = [...displayFixedRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.timestamp - b.timestamp);
+  const sortedGeneralRecords = [...displayGeneralRecords].sort((a, b) => {
+    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return b.amount - a.amount;
+  });
+  const sortedFixedRecords = [...displayFixedRecords].sort((a, b) => {
+    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return b.amount - a.amount;
+  });
   
   const renderRecordItem = (r: AccountingRecord) => (
     <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
@@ -277,13 +287,15 @@ export default function AccountingApp() {
             <input type="text" list="category-options" className="input-field" placeholder="分類 (例如：吃飯)" value={category} onChange={e => setCategory(e.target.value)} required />
             <datalist id="category-options">
               <option value="吃飯" />
-              <option value="旅遊" />
-              <option value="玩具" />
-              <option value="小孩" />
-              <option value="社交" />
+              <option value="生活" />
               <option value="交通" />
+              <option value="社交" />
               <option value="衣著" />
               <option value="設備" />
+              <option value="旅遊" />
+              <option value="小孩" />
+              <option value="玩具" />
+              <option value="雜支" />
             </datalist>
           </div>
           <input type="text" className="input-field" placeholder="備註 (選填)" value={note} onChange={e => setNote(e.target.value)} />
