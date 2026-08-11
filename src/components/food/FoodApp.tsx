@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../store/AuthContext';
 import { syncFoodLists } from '../../lib/foodSync';
 import type { FoodList, FoodPlace } from '../../lib/foodSync';
-import { Utensils, Plus, Trash2, Shuffle, MapPin, Upload, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { MapPin, Utensils, Shuffle, Plus, Upload, Link as LinkIcon, Loader2, Trash2, Map, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 
 export default function FoodApp() {
   const { token, activeFolderId: folderId } = useAuth();
@@ -21,6 +21,7 @@ export default function FoodApp() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importName, setImportName] = useState('新餐廳清單');
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -345,8 +346,43 @@ export default function FoodApp() {
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
             <h2>新增 / 匯入餐廳清單</h2>
             
-            <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)', background: 'var(--bg-dark)', padding: '0.75rem', borderRadius: '8px' }}>
-              💡 推薦使用 <a href="https://takeout.google.com/settings/takeout/custom/maps_places" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>Google Takeout</a> 匯出「已儲存的地點」為 CSV 檔，保證資料 100% 完整轉移！
+            {/* Premium Guide UI */}
+            <div style={{ background: '#faf6f0', borderRadius: '16px', padding: '1rem', marginBottom: '1.5rem', color: '#5a4a42' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ background: '#f5dcb3', padding: '0.75rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Map size={24} color="#d97736" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.2rem' }}>Google 地圖儲存清單</div>
+                  <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>匯入 Google Takeout 匯出的地圖清單 CSV 檔案</div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '0.5rem' }}>
+                <button 
+                  onClick={() => setIsGuideOpen(!isGuideOpen)}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', border: 'none', padding: '0.5rem 0', cursor: 'pointer', color: '#5a4a42', fontWeight: '500', fontSize: '0.95rem' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <HelpCircle size={18} /> 如何取得 Google 地圖清單？
+                  </div>
+                  {isGuideOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+
+                {isGuideOpen && (
+                  <div style={{ padding: '0.5rem 0.5rem 0.5rem 1.8rem', fontSize: '0.9rem', lineHeight: '1.6', opacity: 0.9 }}>
+                    <ol style={{ margin: 0, padding: 0, paddingLeft: '1rem' }}>
+                      <li style={{ marginBottom: '0.5rem' }}>前往 Google Takeout (<a href="https://takeout.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#d97736', textDecoration: 'underline' }}>takeout.google.com</a>)</li>
+                      <li style={{ marginBottom: '0.5rem' }}>點擊「取消全選」</li>
+                      <li style={{ marginBottom: '0.5rem' }}>往下捲動，只勾選「<b>已儲存</b>」(在 Google 搜尋和地圖中已儲存連結的集合)</li>
+                      <li style={{ marginBottom: '0.5rem' }}>點開「多種格式」按鈕，確認匯出格式已選擇為 <b>CSV</b></li>
+                      <li style={{ marginBottom: '0.5rem' }}>滑到最底點擊「下一步」，選擇儲存方式並匯出</li>
+                      <li style={{ marginBottom: '0.5rem' }}>收到信件下載並解壓縮後，找到 .csv 檔案</li>
+                      <li>在此頁面點擊下方按鈕選擇該 CSV 檔案匯入</li>
+                    </ol>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
