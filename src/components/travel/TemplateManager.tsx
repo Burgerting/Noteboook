@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
 import { syncTemplates } from '../../lib/templateSync';
 import type { ChecklistTemplate } from '../../lib/templateSync';
-import { Plus, Trash2, Edit2, X, Check, Save } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Save } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
