@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
 import { syncTravels } from '../../lib/travelSync';
 import type { Trip } from '../../lib/travelSync';
-import { Plane, Plus, Loader2, Calendar, Map, Trash2, ArrowLeft } from 'lucide-react';
+import { Plane, Plus, Loader2, Calendar, Map, Trash2, ArrowLeft, Settings } from 'lucide-react';
 import TripDetail from './TripDetail';
+import TemplateManager from './TemplateManager';
 
 export default function TravelApp() {
   const { token, activeFolderId: folderId } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
   
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
 
@@ -136,9 +138,14 @@ export default function TravelApp() {
         <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
           <Plane color="var(--accent-primary)" /> 旅遊行程
         </h2>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-          <Plus size={16} /> 新增旅程
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-ghost" onClick={() => setIsTemplateManagerOpen(true)}>
+            <Settings size={16} /> 管理清單範本
+          </button>
+          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+            <Plus size={16} /> 新增旅程
+          </button>
+        </div>
       </div>
 
       {isLoading && activeTrips.length === 0 ? (
@@ -248,6 +255,10 @@ export default function TravelApp() {
             </form>
           </div>
         </div>
+      )}
+
+      {isTemplateManagerOpen && (
+        <TemplateManager onClose={() => setIsTemplateManagerOpen(false)} />
       )}
     </div>
   );

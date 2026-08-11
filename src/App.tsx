@@ -5,7 +5,8 @@ import Login from './components/Login';
 import NotesApp from './components/notes/NotesApp';
 import AccountingApp from './components/accounting/AccountingApp';
 import TravelApp from './components/travel/TravelApp';
-import { BookText, Calculator, Loader2, LogOut, Home, Users, FolderPlus, Edit2, X, Menu, Plane } from 'lucide-react';
+import FoodApp from './components/food/FoodApp';
+import { BookText, Calculator, Loader2, LogOut, Home, Users, FolderPlus, Edit2, X, Menu, Plane, Utensils } from 'lucide-react';
 import { getOrCreatePersonalFolder } from './lib/drive';
 import FolderSelectModal from './components/FolderSelect';
 
@@ -26,7 +27,7 @@ function MainApp() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const activeApp = location.pathname.startsWith('/accounting') ? 'accounting' : location.pathname.startsWith('/travel') ? 'travel' : 'notes';
+  const activeApp = location.pathname.startsWith('/accounting') ? 'accounting' : location.pathname.startsWith('/travel') ? 'travel' : location.pathname.startsWith('/food') ? 'food' : 'notes';
   const [isInitializing, setIsInitializing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
@@ -203,6 +204,12 @@ function MainApp() {
               >
                 <Plane size={18} /> 旅遊行程
               </button>
+              <button 
+                className={`nav-tab ${activeApp === 'food' ? 'active' : ''}`}
+                onClick={() => { navigate('/food'); closeSidebar(); }}
+              >
+                <Utensils size={18} /> 吃什麼
+              </button>
             </div>
           </div>
           <button className="btn btn-ghost" onClick={logout} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
@@ -216,6 +223,8 @@ function MainApp() {
             <NotesApp key={activeFolderId} />
           ) : activeApp === 'accounting' ? (
             <AccountingApp key={activeFolderId} />
+          ) : activeApp === 'food' ? (
+            <FoodApp key={activeFolderId} />
           ) : (
             <TravelApp key={activeFolderId} />
           )}

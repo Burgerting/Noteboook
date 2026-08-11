@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../store/AuthContext';
+import { syncTemplates } from '../../lib/templateSync';
+import type { ChecklistTemplate } from '../../lib/templateSync';
 import type { Trip, TravelChecklistItem } from '../../lib/travelSync';
 import { Plus, Trash2, Check, CheckSquare, ListTodo } from 'lucide-react';
 
@@ -8,8 +11,16 @@ interface Props {
 }
 
 export default function ChecklistsTab({ trip, onUpdate }: Props) {
+  const { token, activeFolderId: folderId } = useAuth();
   const [activeList, setActiveList] = useState<'packing' | 'todo'>('packing');
   const [newItemText, setNewItemText] = useState('');
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+
+  useEffect(() => {
+    if (token && folderId) {
+      syncTemplates(token, folderId, []).then(setTemplates);
+    }
+  }, [token, folderId]);
 
   const currentList = trip.checklists[activeList] || [];
   
@@ -177,15 +188,46 @@ export default function ChecklistsTab({ trip, onUpdate }: Props) {
               完成進度: {doneCount} / {totalCount} ({progress}%)
             </div>
           </div>
-          {totalCount === 0 && (
-            <button 
-              className="btn btn-ghost" 
-              style={{ fontSize: '0.85rem' }} 
-              onClick={activeList === 'packing' ? handleAddDefaultPackingList : handleAddDefaultTodoList}
-            >
-              載入預設清單
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {templates.filter(t => !t.isDeleted).length > 0 && (
+              <select 
+                className="btn btn-ghost" 
+                style={{ fontSize: '0.85rem', padding: '0.25rem' }}
+                onChange={(e) => {
+                  const tId = e.target.value;
+                  if (!tId) return;
+                  const tpl = templates.find(t => t.id === tId);
+                  if (tpl && confirm(`確定要匯入範本「${tpl.name}」嗎？`)) {
+                    const newItems = tpl.items
+                      .filter(text => !currentList.some(item => item.text === text))
+                      .map(text => ({ id: crypto.randomUUID(), text, isDone: false }));
+                    if (newItems.length > 0) {
+                      onUpdate({
+                        ...trip,
+                        checklists: { ...trip.checklists, [activeList]: [...currentList, ...newItems] },
+                        timestamp: Date.now()
+                      });
+                    }
+                  }
+                  e.target.value = ''; // Reset
+                }}
+              >
+                <option value="">從範本匯入...</option>
+                {templates.filter(t => !t.isDeleted).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
+            {totalCount === 0 && (
+              <button 
+                className="btn btn-ghost" 
+                style={{ fontSize: '0.85rem' }} 
+                onClick={activeList === 'packing' ? handleAddDefaultPackingList : handleAddDefaultTodoList}
+              >
+                載入預設清單
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Progress Bar */}
