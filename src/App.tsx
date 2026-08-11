@@ -4,7 +4,8 @@ import { useAuth } from './store/AuthContext';
 import Login from './components/Login';
 import NotesApp from './components/notes/NotesApp';
 import AccountingApp from './components/accounting/AccountingApp';
-import { BookText, Calculator, Loader2, LogOut, Home, Users, FolderPlus, Edit2, X, Menu } from 'lucide-react';
+import TravelApp from './components/travel/TravelApp';
+import { BookText, Calculator, Loader2, LogOut, Home, Users, FolderPlus, Edit2, X, Menu, Plane } from 'lucide-react';
 import { getOrCreatePersonalFolder } from './lib/drive';
 import FolderSelectModal from './components/FolderSelect';
 
@@ -25,7 +26,7 @@ function MainApp() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const activeApp = location.pathname.startsWith('/accounting') ? 'accounting' : 'notes';
+  const activeApp = location.pathname.startsWith('/accounting') ? 'accounting' : location.pathname.startsWith('/travel') ? 'travel' : 'notes';
   const [isInitializing, setIsInitializing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
@@ -196,6 +197,12 @@ function MainApp() {
               >
                 <Calculator size={18} /> 記帳本
               </button>
+              <button 
+                className={`nav-tab ${activeApp === 'travel' ? 'active' : ''}`}
+                onClick={() => { navigate('/travel'); closeSidebar(); }}
+              >
+                <Plane size={18} /> 旅遊行程
+              </button>
             </div>
           </div>
           <button className="btn btn-ghost" onClick={logout} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
@@ -207,8 +214,10 @@ function MainApp() {
         <div className="app-content">
           {activeApp === 'notes' ? (
             <NotesApp key={activeFolderId} />
-          ) : (
+          ) : activeApp === 'accounting' ? (
             <AccountingApp key={activeFolderId} />
+          ) : (
+            <TravelApp key={activeFolderId} />
           )}
         </div>
       </div>
