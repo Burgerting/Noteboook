@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
-import { syncTravels, Trip } from '../../lib/travelSync';
+import { syncTravels } from '../../lib/travelSync';
+import type { Trip } from '../../lib/travelSync';
 import { Plane, Plus, Loader2, Calendar, Map, Trash2, ArrowLeft } from 'lucide-react';
 import TripDetail from './TripDetail';
 

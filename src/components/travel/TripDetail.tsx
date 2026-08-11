@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Trip } from '../../lib/travelSync';
+import { useState } from 'react';
+import type { Trip } from '../../lib/travelSync';
 import { MapPin, DollarSign, CheckSquare } from 'lucide-react';
 import ItineraryTab from './ItineraryTab';
 import TravelExpensesTab from './TravelExpensesTab';

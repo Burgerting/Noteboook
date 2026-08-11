@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trip, TravelDay, TravelItem } from '../../lib/travelSync';
+import type { Trip, TravelItem } from '../../lib/travelSync';
 import { Map, Clock, Plus, Trash2, ExternalLink } from 'lucide-react';
 
 interface Props {

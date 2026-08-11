@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Trip, TravelChecklistItem } from '../../lib/travelSync';
-import { Plus, Trash2, Check, X, CheckSquare, ListTodo } from 'lucide-react';
+import type { Trip, TravelChecklistItem } from '../../lib/travelSync';
+import { Plus, Trash2, Check, CheckSquare, ListTodo } from 'lucide-react';
 
 interface Props {
   trip: Trip;

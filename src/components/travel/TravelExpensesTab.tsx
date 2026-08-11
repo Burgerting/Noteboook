@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Trip, TravelExpense } from '../../lib/travelSync';
+import type { Trip, TravelExpense } from '../../lib/travelSync';
 import { useAuth } from '../../store/AuthContext';
-import { Plus, Trash2, PieChart as PieChartIcon } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Props {
@@ -195,12 +195,12 @@ export default function TravelExpensesTab({ trip, onUpdate }: Props) {
                     dataKey="value"
                     stroke="none"
                   >
-                    {chartData.map((entry, index) => (
+                    {chartData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => `$${value.toLocaleString()}`}
+                    formatter={(value: any) => `$${Number(value).toLocaleString()}`}
                     contentStyle={{ background: 'var(--bg-dark)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-primary)' }}
                     itemStyle={{ color: 'var(--text-primary)' }}
                   />
