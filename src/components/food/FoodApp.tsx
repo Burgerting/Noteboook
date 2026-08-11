@@ -329,6 +329,10 @@ export default function FoodApp() {
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
             <h2>新增 / 匯入餐廳清單</h2>
             
+            <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)', background: 'var(--bg-dark)', padding: '0.75rem', borderRadius: '8px' }}>
+              💡 推薦使用 <a href="https://takeout.google.com/settings/takeout/custom/maps_places" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>Google Takeout</a> 匯出「已儲存的地點」為 CSV 檔，保證資料 100% 完整轉移！
+            </div>
+
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
               <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
                 <Upload size={18} /> 上傳 Google Maps CSV
