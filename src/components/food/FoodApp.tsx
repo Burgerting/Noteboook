@@ -82,32 +82,48 @@ export default function FoodApp() {
       const text = event.target?.result as string;
       if (!text) return;
       
-      // Basic CSV parsing for Google Takeout 'Saved Places.csv'
-      // Title, Note, URL, Comment
-      const lines = text.split('\n');
       const places: string[] = [];
       
-      // Skip header
-      for (let i = 1; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line) continue;
-        
-        let title = '';
-        if (line.startsWith('"')) {
-          const endQuote = line.indexOf('"', 1);
-          if (endQuote !== -1) {
-            title = line.substring(1, endQuote);
+      if (file.name.endsWith('.json')) {
+        try {
+          const data = JSON.parse(text);
+          // Handle Google Takeout Saved Places.json format (GeoJSON)
+          if (data.features && Array.isArray(data.features)) {
+            data.features.forEach((feature: any) => {
+              const title = feature.properties?.Title;
+              if (title && !title.startsWith('http')) {
+                places.push(title);
+              }
+            });
           }
-        } else {
-          title = line.split(',')[0];
+        } catch (err) {
+          console.error('Failed to parse JSON', err);
         }
-        
-        if (title) places.push(title);
+      } else {
+        // Basic CSV parsing for legacy formats
+        const lines = text.split('\n');
+        for (let i = 1; i < lines.length; i++) {
+          let line = lines[i].trim();
+          if (!line) continue;
+          
+          let title = '';
+          if (line.startsWith('"')) {
+            const endQuote = line.indexOf('"', 1);
+            if (endQuote !== -1) {
+              title = line.substring(1, endQuote);
+            }
+          } else {
+            title = line.split(',')[0];
+          }
+          if (title) places.push(title);
+        }
       }
 
       if (places.length > 0) {
         setImportText(places.join('\n'));
-        setImportName(file.name.replace('.csv', ''));
+        setImportName(file.name.replace(/\.(csv|json)$/i, ''));
+      } else {
+        alert('無法從檔案中解析出餐廳名稱，請確認檔案格式正確。');
       }
     };
     reader.readAsText(file);
@@ -335,9 +351,9 @@ export default function FoodApp() {
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
               <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
-                <Upload size={18} /> 上傳 Google Maps CSV
+                <Upload size={18} /> 上傳 Google Maps 檔案 (JSON/CSV)
               </button>
-              <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+              <input type="file" accept=".csv,.json" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
               
               <button className="btn btn-ghost" onClick={handleImportFromUrl} style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '0.5rem', border: '1px solid var(--border-color)' }}>
                 <LinkIcon size={18} /> 貼上分享連結
