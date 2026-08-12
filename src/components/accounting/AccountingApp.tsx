@@ -33,6 +33,17 @@ export default function AccountingApp() {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Custom Date Range State
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  });
+  
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'general'|'credit_card'>('general');
 
@@ -55,6 +66,14 @@ export default function AccountingApp() {
     // When month or folder changes, clear local and load remote
     setRecords([]);
     loadData();
+    
+    // Auto-update date range filters to match the selected month
+    if (currentMonth) {
+      const [year, month] = currentMonth.split('-');
+      setStartDate(`${year}-${month}-01`);
+      const lastDay = new Date(Number(year), Number(month), 0).getDate();
+      setEndDate(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+    }
   }, [currentMonth, folderId]);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -235,8 +254,11 @@ export default function AccountingApp() {
 
   const activeRecords = records.filter(r => !r.isDeleted);
   
-  // Apply Search Filter
+  // Apply Search & Date Filter
   const filteredActiveRecords = activeRecords.filter(r => {
+    if (startDate && r.date < startDate) return false;
+    if (endDate && r.date > endDate) return false;
+    
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return r.category.toLowerCase().includes(q) || (r.note && r.note.toLowerCase().includes(q));
@@ -252,13 +274,13 @@ export default function AccountingApp() {
   const displayFixedRecords = selectedCategory ? fixedRecords.filter(r => r.category === selectedCategory) : fixedRecords;
   
   const sortedGeneralRecords = [...displayGeneralRecords].sort((a, b) => {
-    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
     if (dateDiff !== 0) return dateDiff;
     if (a.category !== b.category) return a.category.localeCompare(b.category);
     return b.amount - a.amount;
   });
   const sortedFixedRecords = [...displayFixedRecords].sort((a, b) => {
-    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
     if (dateDiff !== 0) return dateDiff;
     if (a.category !== b.category) return a.category.localeCompare(b.category);
     return b.amount - a.amount;
@@ -338,14 +360,17 @@ export default function AccountingApp() {
         
         <div className="accounting-sync-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <input 
-              type="month" 
-              className="input-field" 
-              style={{ width: 'auto' }}
-              value={currentMonth}
-              onChange={(e) => setCurrentMonth(e.target.value)}
-            />
-            <button className="btn btn-ghost" onClick={loadData} disabled={isLoading}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>切換帳本月份</span>
+              <input 
+                type="month" 
+                className="input-field" 
+                style={{ width: 'auto' }}
+                value={currentMonth}
+                onChange={(e) => setCurrentMonth(e.target.value)}
+              />
+            </div>
+            <button className="btn btn-ghost" onClick={loadData} disabled={isLoading} style={{ marginTop: '1rem' }}>
               <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
               Sync
             </button>
@@ -427,6 +452,27 @@ export default function AccountingApp() {
 
       {/* Right Column: Stats */}
       <div className="dashboard-stats">
+        
+        {/* Date Range Filter */}
+        <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 'bold' }}>統計區間：</span>
+          <input 
+            type="date" 
+            className="input-field" 
+            value={startDate} 
+            onChange={(e) => setStartDate(e.target.value)} 
+            style={{ width: '130px', padding: '0.4rem' }} 
+          />
+          <span>至</span>
+          <input 
+            type="date" 
+            className="input-field" 
+            value={endDate} 
+            onChange={(e) => setEndDate(e.target.value)} 
+            style={{ width: '130px', padding: '0.4rem' }} 
+          />
+        </div>
+
         <div className="glass-panel accounting-stats-box" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
           <div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>總收入</div>
