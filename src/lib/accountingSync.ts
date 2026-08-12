@@ -11,6 +11,7 @@ export interface AccountingRecord {
   isFixed?: boolean;
   isCreditCard?: boolean;
   creator?: string;
+  isDeleted?: boolean;
 }
 
 // Generate filename based on date (e.g., "2026-07-accounting.json")

@@ -31,6 +31,7 @@ export default function AccountingApp() {
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'general'|'credit_card'>('general');
@@ -174,7 +175,9 @@ export default function AccountingApp() {
 
   const handleDelete = (id: string) => {
     if (!confirm('確定要刪除這筆紀錄嗎？')) return;
-    const updatedRecords = records.filter(r => r.id !== id);
+    const updatedRecords = records.map(r => 
+      r.id === id ? { ...r, isDeleted: true, timestamp: Date.now() } : r
+    );
     setRecords(updatedRecords);
     if (token && folderId) {
       const fileName = getMonthFileName(currentMonth);
@@ -230,11 +233,20 @@ export default function AccountingApp() {
     }
   };
 
-  const expenses = records.filter(r => r.type === 'expense');
-  const incomes = records.filter(r => r.type === 'income');
+  const activeRecords = records.filter(r => !r.isDeleted);
   
-  const generalRecords = records.filter(r => !r.isFixed && !r.isCreditCard);
-  const fixedRecords = records.filter(r => r.isFixed);
+  // Apply Search Filter
+  const filteredActiveRecords = activeRecords.filter(r => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return r.category.toLowerCase().includes(q) || (r.note && r.note.toLowerCase().includes(q));
+  });
+
+  const expenses = filteredActiveRecords.filter(r => r.type === 'expense');
+  const incomes = filteredActiveRecords.filter(r => r.type === 'income');
+  
+  const generalRecords = filteredActiveRecords.filter(r => !r.isFixed && !r.isCreditCard);
+  const fixedRecords = filteredActiveRecords.filter(r => r.isFixed);
   
   const displayGeneralRecords = selectedCategory ? generalRecords.filter(r => r.category === selectedCategory) : generalRecords;
   const displayFixedRecords = selectedCategory ? fixedRecords.filter(r => r.category === selectedCategory) : fixedRecords;
@@ -368,11 +380,26 @@ export default function AccountingApp() {
           {isFormExpanded && (
             <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <select className="input-field" value={recordType} onChange={e => setRecordType(e.target.value as any)}>
+            <select className="input-field" value={recordType} onChange={e => {
+              const val = e.target.value as any;
+              setRecordType(val);
+              if (val === 'income') {
+                setCategory('收入');
+              } else if (category === '收入') {
+                setCategory('');
+              }
+            }}>
               <option value="expense">一般支出</option>
               <option value="income">收入</option>
             </select>
-            <input type="date" className="input-field" value={date} onChange={e => setDate(e.target.value)} required />
+            <input type="date" className="input-field" value={date} onChange={e => {
+              const newDate = e.target.value;
+              setDate(newDate);
+              const newMonth = newDate.substring(0, 7);
+              if (newMonth && newMonth !== currentMonth) {
+                setCurrentMonth(newMonth);
+              }
+            }} required />
           </div>
           <div style={{ display: 'flex', gap: '1rem' }}>
             <input type="number" className="input-field" placeholder="金額" value={amount} onChange={e => setAmount(e.target.value)} required />
@@ -449,13 +476,23 @@ export default function AccountingApp() {
         {/* Lists */}
         <div className="glass-panel accounting-list-box" style={{ padding: '1.5rem', flex: 1, minHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>紀錄明細</h3>
-            {selectedCategory && (
-              <button className="btn btn-ghost" type="button" onClick={() => setSelectedCategory(null)} style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center' }}>
-                <FilterX size={14} style={{ marginRight: '0.25rem' }} /> 清除篩選 ({selectedCategory})
-              </button>
-            )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <h3 style={{ margin: 0 }}>紀錄明細</h3>
+              {selectedCategory && (
+                <button className="btn btn-ghost" type="button" onClick={() => setSelectedCategory(null)} style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', padding: '0.25rem 0.5rem' }}>
+                  <FilterX size={14} style={{ marginRight: '0.25rem' }} /> 清除 ({selectedCategory})
+                </button>
+              )}
+            </div>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="搜尋關鍵字 (例如：水費)..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '200px' }}
+            />
           </div>
 
           {records.length === 0 ? (
