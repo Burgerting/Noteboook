@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
-import { getMonthFileName, syncAccountingRecords } from '../../lib/accountingSync';
+import { syncAllAccountingRecords, saveMonthAccountingRecords } from '../../lib/accountingSync';
 import type { AccountingRecord } from '../../lib/accountingSync';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, Download, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
@@ -51,8 +51,7 @@ export default function AccountingApp() {
     if (!token || !folderId) return;
     setIsLoading(true);
     try {
-      const fileName = getMonthFileName(currentMonth);
-      const syncedRecords = await syncAccountingRecords(token, folderId, fileName, records);
+      const syncedRecords = await syncAllAccountingRecords(token, folderId, records);
       setRecords(syncedRecords);
     } catch (e) {
       console.error(e);
@@ -63,18 +62,22 @@ export default function AccountingApp() {
   };
 
   useEffect(() => {
-    // When month or folder changes, clear local and load remote
     setRecords([]);
     loadData();
-    
-    // Auto-update date range filters to match the selected month
-    if (currentMonth) {
-      const [year, month] = currentMonth.split('-');
+  }, [folderId]);
+
+  const handleMonthChange = (newMonth: string) => {
+    setCurrentMonth(newMonth);
+    if (newMonth) {
+      const [year, month] = newMonth.split('-');
       setStartDate(`${year}-${month}-01`);
       const lastDay = new Date(Number(year), Number(month), 0).getDate();
       setEndDate(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+    } else {
+      setStartDate('');
+      setEndDate('');
     }
-  }, [currentMonth, folderId]);
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +104,7 @@ export default function AccountingApp() {
       creator: userInfo?.name || undefined
     };
     
+    const targetMonth = date.substring(0, 7);
     const updatedRecords = [newRecord, ...records];
     setRecords(updatedRecords);
     
@@ -108,10 +112,10 @@ export default function AccountingApp() {
     setAmount('');
     setNote('');
     
-    // Trigger sync in background
+    // Trigger save to target month file on Google Drive
     if (token && folderId) {
-      const fileName = getMonthFileName(currentMonth);
-      syncAccountingRecords(token, folderId, fileName, updatedRecords).then(setRecords);
+      const targetMonthRecords = updatedRecords.filter(r => r.date.startsWith(targetMonth));
+      saveMonthAccountingRecords(token, folderId, targetMonth, targetMonthRecords);
     }
   };
 
@@ -125,11 +129,12 @@ export default function AccountingApp() {
       }
       
       let hasDuplicate = false;
+      const targetMonth = currentMonth || new Date().toISOString().substring(0, 7);
       
       const validInsts = installments.filter(inst => {
-        if (currentMonth < inst.startDate) return false;
+        if (targetMonth < inst.startDate) return false;
         const start = new Date(inst.startDate + '-01');
-        const now = new Date(currentMonth + '-01');
+        const now = new Date(targetMonth + '-01');
         let months = (now.getFullYear() - start.getFullYear()) * 12;
         months -= start.getMonth();
         months += now.getMonth();
@@ -139,7 +144,7 @@ export default function AccountingApp() {
 
       const newRecords = validInsts.filter(inst => {
         const start = new Date(inst.startDate + '-01');
-        const now = new Date(currentMonth + '-01');
+        const now = new Date(targetMonth + '-01');
         let months = (now.getFullYear() - start.getFullYear()) * 12;
         months -= start.getMonth();
         months += now.getMonth();
@@ -154,7 +159,7 @@ export default function AccountingApp() {
         return !isDuplicate;
       }).map(inst => {
         const start = new Date(inst.startDate + '-01');
-        const now = new Date(currentMonth + '-01');
+        const now = new Date(targetMonth + '-01');
         let months = (now.getFullYear() - start.getFullYear()) * 12;
         months -= start.getMonth();
         months += now.getMonth();
@@ -165,27 +170,28 @@ export default function AccountingApp() {
 
         return {
           id: crypto.randomUUID(),
-          date: new Date().toISOString().split('T')[0],
+          date: targetMonth + '-01',
           type: 'expense' as const,
           amount: amountPerTerm,
           category: inst.category,
           note: finalNote,
           timestamp: Date.now(),
-          isFixed: true, // 顯示在固定支出/分期區塊
+          isFixed: true,
           creator: userInfo?.name || undefined
         };
       });
 
       if (hasDuplicate) {
-        alert('提示：發現有相同名稱與期數的分期項目已經存在於本月帳單中，為避免重複，系統已自動略過。');
+        alert('提示：發現有相同名稱與期數的分期項目已經存在於帳單中，為避免重複，系統已自動略過。');
       }
 
       if (newRecords.length === 0) return;
 
       const updatedRecords = [...newRecords, ...records];
       setRecords(updatedRecords);
-      const fileName = getMonthFileName(currentMonth);
-      syncAccountingRecords(token, folderId, fileName, updatedRecords).then(setRecords);
+      const targetMonthRecords = updatedRecords.filter(r => r.date.startsWith(targetMonth));
+      saveMonthAccountingRecords(token, folderId, targetMonth, targetMonthRecords);
+      alert(`成功匯入 ${newRecords.length} 筆分期支出！`);
     } catch (err) {
       console.error(err);
       alert('匯入分期失敗');
@@ -194,13 +200,16 @@ export default function AccountingApp() {
 
   const handleDelete = (id: string) => {
     if (!confirm('確定要刪除這筆紀錄嗎？')) return;
+    const target = records.find(r => r.id === id);
+    if (!target) return;
+    const targetMonth = target.date.substring(0, 7);
     const updatedRecords = records.map(r => 
       r.id === id ? { ...r, isDeleted: true, timestamp: Date.now() } : r
     );
     setRecords(updatedRecords);
     if (token && folderId) {
-      const fileName = getMonthFileName(currentMonth);
-      syncAccountingRecords(token, folderId, fileName, updatedRecords).then(setRecords);
+      const targetMonthRecords = updatedRecords.filter(r => r.date.startsWith(targetMonth));
+      saveMonthAccountingRecords(token, folderId, targetMonth, targetMonthRecords);
     }
   };
 
@@ -214,8 +223,8 @@ export default function AccountingApp() {
       }
       
       let hasDuplicate = false;
-      // 過濾掉已經停止的支出（若 currentMonth 大於 endDate 則不匯入）
-      const validFixed = fixed.filter(f => !f.endDate || currentMonth <= f.endDate);
+      const targetMonth = currentMonth || new Date().toISOString().substring(0, 7);
+      const validFixed = fixed.filter(f => !f.endDate || targetMonth <= f.endDate);
 
       const newRecords = validFixed.filter(f => {
         const isDuplicate = records.some(r => r.category === f.category && r.note === f.note && r.amount === f.amount && r.type === 'expense');
@@ -223,7 +232,7 @@ export default function AccountingApp() {
         return !isDuplicate;
       }).map(f => ({
         id: crypto.randomUUID(),
-        date: new Date().toISOString().split('T')[0], // Use today's date
+        date: targetMonth + '-01',
         type: 'expense' as const,
         amount: f.amount,
         category: f.category,
@@ -234,7 +243,7 @@ export default function AccountingApp() {
       }));
 
       if (hasDuplicate) {
-        alert('提示：發現有相同名稱與金額的項目已經存在於本月帳單中，為避免重複，系統已自動為您略過這些項目。請檢查清楚！');
+        alert('提示：發現有相同名稱與金額的項目已經存在於帳單中，為避免重複，系統已自動為您略過這些項目。請檢查清楚！');
       }
 
       if (newRecords.length === 0) {
@@ -243,8 +252,8 @@ export default function AccountingApp() {
 
       const updatedRecords = [...newRecords, ...records];
       setRecords(updatedRecords);
-      const fileName = getMonthFileName(currentMonth);
-      syncAccountingRecords(token, folderId, fileName, updatedRecords).then(setRecords);
+      const targetMonthRecords = updatedRecords.filter(r => r.date.startsWith(targetMonth));
+      saveMonthAccountingRecords(token, folderId, targetMonth, targetMonthRecords);
       alert(`成功匯入 ${newRecords.length} 筆固定支出！`);
     } catch (e) {
       console.error(e);
@@ -359,20 +368,30 @@ export default function AccountingApp() {
       <div className="dashboard-form-list">
         
         <div className="accounting-sync-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>切換帳本月份</span>
-              <input 
-                type="month" 
-                className="input-field" 
-                style={{ width: 'auto' }}
-                value={currentMonth}
-                onChange={(e) => setCurrentMonth(e.target.value)}
-              />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input 
+                  type="month" 
+                  className="input-field" 
+                  style={{ width: 'auto' }}
+                  value={currentMonth}
+                  onChange={(e) => handleMonthChange(e.target.value)}
+                />
+                <button 
+                  type="button" 
+                  className={`btn ${!currentMonth ? 'btn-primary' : 'btn-ghost'}`} 
+                  style={{ fontSize: '0.85rem', padding: '0.4rem 0.75rem' }}
+                  onClick={() => handleMonthChange('')}
+                >
+                  全部歷史
+                </button>
+              </div>
             </div>
             <button className="btn btn-ghost" onClick={loadData} disabled={isLoading} style={{ marginTop: '1rem' }}>
               <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
-              Sync
+              {isLoading ? '同步中...' : 'Sync (讀取全部帳本)'}
             </button>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -422,7 +441,7 @@ export default function AccountingApp() {
               setDate(newDate);
               const newMonth = newDate.substring(0, 7);
               if (newMonth && newMonth !== currentMonth) {
-                setCurrentMonth(newMonth);
+                handleMonthChange(newMonth);
               }
             }} required />
           </div>
@@ -454,7 +473,7 @@ export default function AccountingApp() {
       <div className="dashboard-stats">
         
         {/* Date Range Filter */}
-        <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 'bold' }}>統計區間：</span>
           <input 
             type="date" 
@@ -471,6 +490,17 @@ export default function AccountingApp() {
             onChange={(e) => setEndDate(e.target.value)} 
             style={{ width: '130px', padding: '0.4rem' }} 
           />
+          <button 
+            type="button" 
+            className="btn btn-ghost" 
+            style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+          >
+            全部區間
+          </button>
         </div>
 
         <div className="glass-panel accounting-stats-box" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>

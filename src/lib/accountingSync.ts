@@ -20,6 +20,76 @@ export function getMonthFileName(dateStr: string) {
   return `${year}-${month}-accounting.json`;
 }
 
+// Sync function for all months: fetches all remote monthly accounting files (*-accounting.json)
+export async function syncAllAccountingRecords(
+  token: string,
+  folderId: string,
+  localRecords: AccountingRecord[] = []
+): Promise<AccountingRecord[]> {
+  const files = await listFilesInFolder(token, folderId);
+  const accountingFiles = files.filter(f => f.name.endsWith('-accounting.json'));
+
+  const fileContents = await Promise.all(
+    accountingFiles.map(async (fileInfo) => {
+      try {
+        const content = await readFileContent(token, fileInfo.id);
+        const parsed = JSON.parse(content);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error('Failed to parse remote records from', fileInfo.name, e);
+        return [];
+      }
+    })
+  );
+
+  const remoteRecords: AccountingRecord[] = fileContents.flat();
+
+  // Merge logic: Combine all unique IDs. If duplicate ID, pick the one with the latest timestamp.
+  const recordMap = new Map<string, AccountingRecord>();
+
+  for (const record of remoteRecords) {
+    if (record && record.id) {
+      recordMap.set(record.id, record);
+    }
+  }
+
+  for (const local of localRecords) {
+    if (local && local.id) {
+      const existing = recordMap.get(local.id);
+      if (!existing || local.timestamp > existing.timestamp) {
+        recordMap.set(local.id, local);
+      }
+    }
+  }
+
+  const mergedRecords = Array.from(recordMap.values()).sort((a, b) => {
+    // Sort by date (descending), then by timestamp (descending)
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return b.timestamp - a.timestamp;
+  });
+
+  return mergedRecords;
+}
+
+// Save records belonging to a specific month (e.g. "2026-07")
+export async function saveMonthAccountingRecords(
+  token: string,
+  folderId: string,
+  yearMonth: string,
+  recordsForThisMonth: AccountingRecord[]
+) {
+  const monthFileName = `${yearMonth}-accounting.json`;
+  const files = await listFilesInFolder(token, folderId);
+  const fileInfo = files.find(f => f.name === monthFileName);
+  const jsonStr = JSON.stringify(recordsForThisMonth, null, 2);
+
+  if (fileInfo) {
+    await updateFile(token, fileInfo.id, jsonStr, 'application/json');
+  } else {
+    await createFile(token, folderId, monthFileName, jsonStr, 'application/json');
+  }
+}
+
 // Sync function: fetches remote data, merges with local, and saves back if changed
 export async function syncAccountingRecords(
   token: string, 
