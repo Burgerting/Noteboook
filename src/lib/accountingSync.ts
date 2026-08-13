@@ -154,8 +154,9 @@ export interface FixedExpense {
   category: string;
   note: string;
   amount: number;
-  deductionDate?: number;
-  endDate?: string;
+  startDate?: string;     // 起始月份 (YYYY-MM)
+  deductionDate?: number; // 扣款日 (1-31)
+  endDate?: string;       // 結束月份 (YYYY-MM)
   creator?: string;
 }
 
