@@ -72,6 +72,8 @@ async function fetchWithAuth(url: string, token: string, options: RequestInit = 
     if (response.status === 401) {
       throw new Error('UNAUTHORIZED');
     }
+    const errText = await response.text().catch(() => '');
+    console.error(`Google API Error [${response.status}] for ${url}:`, errText);
     throw new Error(`Google API Error: ${response.statusText}`);
   }
   return response;
