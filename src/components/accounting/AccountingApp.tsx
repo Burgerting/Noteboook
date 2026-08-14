@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
-import { syncAllAccountingRecords, saveMonthAccountingRecords } from '../../lib/accountingSync';
+import { syncAllAccountingRecords, saveMonthAccountingRecords, getFixedExpenses, getInstallments } from '../../lib/accountingSync';
+import type { FixedExpense, Installment } from '../../lib/accountingSync';
 import type { AccountingRecord } from '../../lib/accountingSync';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, Download, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
 import FixedExpensesModal from './FixedExpensesModal';
 import InstallmentsModal from './InstallmentsModal';
 import CreditCardTab from './CreditCardTab';
-import { getFixedExpenses, getInstallments } from '../../lib/accountingSync';
+
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -20,6 +21,8 @@ export default function AccountingApp() {
   });
   
   const [records, setRecords] = useState<AccountingRecord[]>([]);
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([]);
+  const [installments, setInstallments] = useState<Installment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFixedExpensesModalOpen, setIsFixedExpensesModalOpen] = useState(false);
   const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false);
@@ -53,6 +56,10 @@ export default function AccountingApp() {
     try {
       const syncedRecords = await syncAllAccountingRecords(token, folderId, records);
       setRecords(syncedRecords);
+      const fixed = await getFixedExpenses(token, folderId);
+      setFixedExpenses(fixed);
+      const insts = await getInstallments(token, folderId);
+      setInstallments(insts);
     } catch (e) {
       console.error(e);
       alert('同步資料失敗');
@@ -119,269 +126,64 @@ export default function AccountingApp() {
     }
   };
 
-  function getMonthsBetween(startYM: string, endYM: string): string[] {
-    const result: string[] = [];
-    const [startYear, startMonth] = startYM.split('-').map(Number);
-    const [endYear, endMonth] = endYM.split('-').map(Number);
-    
-    let y = startYear;
-    let m = startMonth;
-    while (y < endYear || (y === endYear && m <= endMonth)) {
-      result.push(`${y}-${String(m).padStart(2, '0')}`);
-      m++;
-      if (m > 12) {
-        m = 1;
-        y++;
+  // Dynamic Generation of Fixed Expenses & Installments
+  const dynamicFixedRecords: AccountingRecord[] = [];
+  const targetMonths = currentMonth ? [currentMonth] : Array.from(new Set(records.map(r => r.date.substring(0, 7)))).sort();
+  
+  if (targetMonths.length === 0) {
+    const today = new Date();
+    targetMonths.push(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+  }
+  
+  for (const ym of targetMonths) {
+    // Fixed Expenses
+    const validFixed = fixedExpenses.filter(f => (!f.startDate || f.startDate <= ym) && (!f.endDate || ym <= f.endDate));
+    for (const f of validFixed) {
+      const day = String(f.deductionDate || 1).padStart(2, '0');
+      dynamicFixedRecords.push({
+        id: `fixed-${f.id}-${ym}`,
+        date: `${ym}-${day}`,
+        type: 'expense',
+        amount: f.amount,
+        category: f.category,
+        note: f.note,
+        timestamp: 0,
+        isFixed: true,
+        creator: f.creator
+      });
+    }
+
+    // Installments
+    for (const inst of installments) {
+      if (ym < inst.startDate) continue;
+      const start = new Date(inst.startDate + '-01');
+      const now = new Date(ym + '-01');
+      let months = (now.getFullYear() - start.getFullYear()) * 12;
+      months -= start.getMonth();
+      months += now.getMonth();
+      const currentTerm = months + 1;
+      
+      if (currentTerm > 0 && currentTerm <= inst.terms) {
+        const amountPerTerm = Math.round((inst.totalAmount * (1 + (inst.interestRate || 0) / 100)) / inst.terms);
+        const termNote = `(第 ${currentTerm}/${inst.terms} 期)`;
+        const finalNote = inst.note ? `${inst.note} ${termNote}` : termNote;
+        
+        dynamicFixedRecords.push({
+          id: `inst-${inst.id}-${ym}`,
+          date: `${ym}-01`,
+          type: 'expense',
+          amount: amountPerTerm,
+          category: inst.category,
+          note: finalNote,
+          timestamp: 0,
+          isFixed: true,
+          creator: inst.creator
+        });
       }
     }
-    return result;
   }
 
-  const handleImportInstallments = async () => {
-    if (!token || !folderId) return;
-    try {
-      const installments = await getInstallments(token, folderId);
-      if (installments.length === 0) {
-        alert('您還沒有設定任何分期項目，或是雲端仍在同步中。\n請至「管理分期」中點擊「新增」設定。');
-        return;
-      }
-      
-      const today = new Date();
-      const currentSystemYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-      let newRecords: AccountingRecord[] = [];
-      let hasDuplicate = false;
-
-      if (currentMonth) {
-        // Import for single selected month
-        const validInsts = installments.filter(inst => {
-          if (currentMonth < inst.startDate) return false;
-          const start = new Date(inst.startDate + '-01');
-          const now = new Date(currentMonth + '-01');
-          let months = (now.getFullYear() - start.getFullYear()) * 12;
-          months -= start.getMonth();
-          months += now.getMonth();
-          const currentTerm = months + 1;
-          return currentTerm > 0 && currentTerm <= inst.terms;
-        });
-
-        newRecords = validInsts.filter(inst => {
-          const start = new Date(inst.startDate + '-01');
-          const now = new Date(currentMonth + '-01');
-          let months = (now.getFullYear() - start.getFullYear()) * 12;
-          months -= start.getMonth();
-          months += now.getMonth();
-          const currentTerm = months + 1;
-          const amountPerTerm = Math.round((inst.totalAmount * (1 + (inst.interestRate || 0) / 100)) / inst.terms);
-          const termNote = `(第 ${currentTerm}/${inst.terms} 期)`;
-          const finalNote = inst.note ? `${inst.note} ${termNote}` : termNote;
-
-          const isDuplicate = records.some(r => r.category === inst.category && r.note === finalNote && r.amount === amountPerTerm && r.type === 'expense' && r.date.startsWith(currentMonth));
-          if (isDuplicate) hasDuplicate = true;
-          return !isDuplicate;
-        }).map(inst => {
-          const start = new Date(inst.startDate + '-01');
-          const now = new Date(currentMonth + '-01');
-          let months = (now.getFullYear() - start.getFullYear()) * 12;
-          months -= start.getMonth();
-          months += now.getMonth();
-          const currentTerm = months + 1;
-          const amountPerTerm = Math.round((inst.totalAmount * (1 + (inst.interestRate || 0) / 100)) / inst.terms);
-          const termNote = `(第 ${currentTerm}/${inst.terms} 期)`;
-          const finalNote = inst.note ? `${inst.note} ${termNote}` : termNote;
-
-          return {
-            id: crypto.randomUUID(),
-            date: currentMonth + '-01',
-            type: 'expense' as const,
-            amount: amountPerTerm,
-            category: inst.category,
-            note: finalNote,
-            timestamp: Date.now(),
-            isFixed: true,
-            creator: userInfo?.name || undefined
-          };
-        });
-      } else {
-        // Batch import across all installment terms
-        const isConfirm = window.confirm('目前在「全部歷史」模式，即將為所有分期項目依照期數與起始月份，批次匯入到歷月帳本（至當前月份）。\n是否繼續？');
-        if (!isConfirm) return;
-
-        for (const inst of installments) {
-          const [sY, sM] = inst.startDate.split('-').map(Number);
-          const amountPerTerm = Math.round((inst.totalAmount * (1 + (inst.interestRate || 0) / 100)) / inst.terms);
-
-          for (let term = 1; term <= inst.terms; term++) {
-            const targetDate = new Date(sY, sM - 1 + (term - 1), 1);
-            const targetYM = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-            if (targetYM > currentSystemYM) continue; // 不預先產生未來月份
-
-            const termNote = `(第 ${term}/${inst.terms} 期)`;
-            const finalNote = inst.note ? `${inst.note} ${termNote}` : termNote;
-            const recordDate = `${targetYM}-01`;
-
-            const isDuplicate = records.some(r => r.category === inst.category && r.note === finalNote && r.amount === amountPerTerm && r.type === 'expense' && r.date === recordDate);
-            if (isDuplicate) {
-              hasDuplicate = true;
-              continue;
-            }
-
-            newRecords.push({
-              id: crypto.randomUUID(),
-              date: recordDate,
-              type: 'expense',
-              amount: amountPerTerm,
-              category: inst.category,
-              note: finalNote,
-              timestamp: Date.now() + newRecords.length,
-              isFixed: true,
-              creator: userInfo?.name || undefined
-            });
-          }
-        }
-      }
-
-      if (hasDuplicate && newRecords.length === 0) {
-        alert('提示：所有期數項目均已存在於帳本中，無需重複匯入。');
-        return;
-      }
-
-      if (newRecords.length === 0) return;
-
-      const updatedRecords = [...newRecords, ...records];
-      setRecords(updatedRecords);
-
-      // Save each affected month file
-      const affectedMonths = Array.from(new Set(newRecords.map(r => r.date.substring(0, 7))));
-      if (token && folderId) {
-        for (const ym of affectedMonths) {
-          const monthRecords = updatedRecords.filter(r => r.date.startsWith(ym));
-          await saveMonthAccountingRecords(token, folderId, ym, monthRecords);
-        }
-      }
-
-      alert(`成功為 ${affectedMonths.length} 個月份匯入共 ${newRecords.length} 筆分期支出！`);
-    } catch (err) {
-      console.error(err);
-      alert('匯入分期失敗');
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    if (!confirm('確定要刪除這筆紀錄嗎？')) return;
-    const target = records.find(r => r.id === id);
-    if (!target) return;
-    const targetMonth = target.date.substring(0, 7);
-    const updatedRecords = records.map(r => 
-      r.id === id ? { ...r, isDeleted: true, timestamp: Date.now() } : r
-    );
-    setRecords(updatedRecords);
-    if (token && folderId) {
-      const targetMonthRecords = updatedRecords.filter(r => r.date.startsWith(targetMonth));
-      saveMonthAccountingRecords(token, folderId, targetMonth, targetMonthRecords);
-    }
-  };
-
-  const handleImportFixedExpenses = async () => {
-    if (!token || !folderId) return;
-    try {
-      const fixed = await getFixedExpenses(token, folderId);
-      if (fixed.length === 0) {
-        alert('您還沒有設定任何固定支出，請先至「管理固定支出」中點擊「新增」。');
-        return;
-      }
-      
-      const today = new Date();
-      const currentSystemYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-      let newRecords: AccountingRecord[] = [];
-      let hasDuplicate = false;
-
-      if (currentMonth) {
-        // Import for single selected month
-        const validFixed = fixed.filter(f => (!f.startDate || f.startDate <= currentMonth) && (!f.endDate || currentMonth <= f.endDate));
-        
-        newRecords = validFixed.filter(f => {
-          const isDuplicate = records.some(r => r.category === f.category && r.note === f.note && r.amount === f.amount && r.type === 'expense' && r.date.startsWith(currentMonth));
-          if (isDuplicate) hasDuplicate = true;
-          return !isDuplicate;
-        }).map(f => {
-          const day = String(f.deductionDate || 1).padStart(2, '0');
-          return {
-            id: crypto.randomUUID(),
-            date: `${currentMonth}-${day}`,
-            type: 'expense' as const,
-            amount: f.amount,
-            category: f.category,
-            note: f.note,
-            timestamp: Date.now(),
-            isFixed: true,
-            creator: userInfo?.name || undefined
-          };
-        });
-      } else {
-        // Batch import across all historical months in range
-        const isConfirm = window.confirm('目前在「全部歷史」模式，即將依據各固定支出的「起始月份」與「結束月份」，批次為歷月帳本（至當前月份）匯入所有未入帳的固定支出。\n是否繼續？');
-        if (!isConfirm) return;
-
-        // Determine global start month from all fixed items
-        const startMonths = fixed.map(f => f.startDate).filter(Boolean) as string[];
-        const earliestMonth = startMonths.length > 0 ? startMonths.sort()[0] : '2024-12';
-        const allMonths = getMonthsBetween(earliestMonth, currentSystemYM);
-
-        for (const ym of allMonths) {
-          const validFixed = fixed.filter(f => (!f.startDate || f.startDate <= ym) && (!f.endDate || ym <= f.endDate));
-          
-          for (const f of validFixed) {
-            const day = String(f.deductionDate || 1).padStart(2, '0');
-            const recordDate = `${ym}-${day}`;
-
-            const isDuplicate = records.some(r => r.category === f.category && r.note === f.note && r.amount === f.amount && r.type === 'expense' && r.date.startsWith(ym));
-            if (isDuplicate) {
-              hasDuplicate = true;
-              continue;
-            }
-
-            newRecords.push({
-              id: crypto.randomUUID(),
-              date: recordDate,
-              type: 'expense',
-              amount: f.amount,
-              category: f.category,
-              note: f.note,
-              timestamp: Date.now() + newRecords.length,
-              isFixed: true,
-              creator: userInfo?.name || undefined
-            });
-          }
-        }
-      }
-
-      if (hasDuplicate && newRecords.length === 0) {
-        alert('提示：所選月份的固定支出項目皆已存在於帳本中，無需重複匯入。');
-        return;
-      }
-
-      if (newRecords.length === 0) return;
-
-      const updatedRecords = [...newRecords, ...records];
-      setRecords(updatedRecords);
-
-      // Save each affected month file
-      const affectedMonths = Array.from(new Set(newRecords.map(r => r.date.substring(0, 7))));
-      if (token && folderId) {
-        for (const ym of affectedMonths) {
-          const monthRecords = updatedRecords.filter(r => r.date.startsWith(ym));
-          await saveMonthAccountingRecords(token, folderId, ym, monthRecords);
-        }
-      }
-
-      alert(`成功為 ${affectedMonths.length} 個月份匯入共 ${newRecords.length} 筆固定支出！`);
-    } catch (e) {
-      console.error(e);
-      alert('匯入固定支出失敗');
-    }
-  };
-
-  const activeRecords = records.filter(r => !r.isDeleted);
+  const activeRecords = [...records.filter(r => !r.isDeleted), ...dynamicFixedRecords];
   
   // Apply Search & Date Filter
   const filteredActiveRecords = activeRecords.filter(r => {

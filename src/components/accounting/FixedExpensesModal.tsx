@@ -178,7 +178,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
         </div>
 
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
-          設定每月的家庭固定開銷（如房租、車貸、管理費），<strong>新增或刪除將即時自動同步至雲端</strong>。設定起始月份後可一鍵批次匯入歷月帳本。
+          設定每月的家庭固定開銷（如房租、車貸、管理費），<strong>新增、修改或刪除將即時自動同步，並自動套用於所有符合條件的月份中</strong>。
         </p>
 
         {error && <div style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{error}</div>}
