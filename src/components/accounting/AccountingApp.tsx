@@ -4,7 +4,7 @@ import { syncAllAccountingRecords, saveMonthAccountingRecords, getFixedExpenses,
 import type { FixedExpense, Installment } from '../../lib/accountingSync';
 import type { AccountingRecord } from '../../lib/accountingSync';
 import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, Download, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
 import FixedExpensesModal from './FixedExpensesModal';
 import InstallmentsModal from './InstallmentsModal';
 import CreditCardTab from './CreditCardTab';
