@@ -393,8 +393,8 @@ export default function AccountingApp() {
     return r.category.toLowerCase().includes(q) || (r.note && r.note.toLowerCase().includes(q));
   });
 
-  const expenses = filteredActiveRecords.filter(r => r.type === 'expense');
-  const incomes = filteredActiveRecords.filter(r => r.type === 'income');
+  const expenses = filteredActiveRecords.filter(r => r.type === 'expense' && !r.isCreditCard);
+  const incomes = filteredActiveRecords.filter(r => r.type === 'income' && !r.isCreditCard);
   
   const generalRecords = filteredActiveRecords.filter(r => !r.isFixed && !r.isCreditCard);
   const fixedRecords = filteredActiveRecords.filter(r => r.isFixed && !r.isCreditCard);
