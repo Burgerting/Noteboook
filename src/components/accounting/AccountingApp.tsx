@@ -393,16 +393,14 @@ export default function AccountingApp() {
     return r.category.toLowerCase().includes(q) || (r.note && r.note.toLowerCase().includes(q));
   });
 
-  const expenses = filteredActiveRecords.filter(r => r.type === 'expense' && !r.isCreditCard);
-  const incomes = filteredActiveRecords.filter(r => r.type === 'income' && !r.isCreditCard);
+  const expenses = filteredActiveRecords.filter(r => r.type === 'expense');
+  const incomes = filteredActiveRecords.filter(r => r.type === 'income');
   
   const generalRecords = filteredActiveRecords.filter(r => !r.isFixed && !r.isCreditCard);
-  const fixedRecords = filteredActiveRecords.filter(r => r.isFixed && !r.isCreditCard);
-  const creditCardRecords = filteredActiveRecords.filter(r => r.isCreditCard);
+  const fixedRecords = filteredActiveRecords.filter(r => r.isFixed);
   
   const displayGeneralRecords = selectedCategory ? generalRecords.filter(r => r.category === selectedCategory) : generalRecords;
   const displayFixedRecords = selectedCategory ? fixedRecords.filter(r => r.category === selectedCategory) : fixedRecords;
-  const displayCreditCardRecords = selectedCategory ? creditCardRecords.filter(r => r.category === selectedCategory) : creditCardRecords;
   
   const sortedGeneralRecords = [...displayGeneralRecords].sort((a, b) => {
     const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -411,12 +409,6 @@ export default function AccountingApp() {
     return b.amount - a.amount;
   });
   const sortedFixedRecords = [...displayFixedRecords].sort((a, b) => {
-    const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
-    if (dateDiff !== 0) return dateDiff;
-    if (a.category !== b.category) return a.category.localeCompare(b.category);
-    return b.amount - a.amount;
-  });
-  const sortedCreditCardRecords = [...displayCreditCardRecords].sort((a, b) => {
     const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
     if (dateDiff !== 0) return dateDiff;
     if (a.category !== b.category) return a.category.localeCompare(b.category);
@@ -722,18 +714,6 @@ export default function AccountingApp() {
                   {displayFixedRecords.length === 0 ? <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>無</p> : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       {sortedFixedRecords.map(r => renderRecordItem(r))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Credit Card Import Records */}
-              {(displayCreditCardRecords.length > 0 || creditCardRecords.length > 0) && (
-                <div>
-                  <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontSize: '0.9rem', marginTop: '1rem' }}>信用卡自動匯入</h4>
-                  {displayCreditCardRecords.length === 0 ? <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>無</p> : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {sortedCreditCardRecords.map(r => renderRecordItem(r))}
                     </div>
                   )}
                 </div>
