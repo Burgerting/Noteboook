@@ -183,6 +183,22 @@ export default function AccountingApp() {
     }
   }
 
+
+  const handleDelete = (id: string) => {
+    if (!confirm('確定要刪除這筆紀錄嗎？')) return;
+    const target = records.find(r => r.id === id);
+    if (!target) return;
+    const targetMonth = target.date.substring(0, 7);
+    const updatedRecords = records.map(r => 
+      r.id === id ? { ...r, isDeleted: true, timestamp: Date.now() } : r
+    );
+    setRecords(updatedRecords);
+    if (token && folderId) {
+      const targetMonthRecords = updatedRecords.filter(r => r.date.startsWith(targetMonth));
+      saveMonthAccountingRecords(token, folderId, targetMonth, targetMonthRecords);
+    }
+  };
+
   const activeRecords = [...records.filter(r => !r.isDeleted), ...dynamicFixedRecords];
   
   // Apply Search & Date Filter
@@ -317,12 +333,8 @@ export default function AccountingApp() {
             </button>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button className="btn btn-ghost" onClick={handleImportFixedExpenses} style={{ fontSize: '0.9rem' }}>
-              <Download size={16} /> 匯入固定支出
-            </button>
-            <button className="btn btn-ghost" onClick={handleImportInstallments} style={{ fontSize: '0.9rem' }}>
-              <Download size={16} /> 匯入分期
-            </button>
+            
+            
             <button className="btn btn-ghost" onClick={() => setIsFixedExpensesModalOpen(true)} style={{ fontSize: '0.9rem' }}>
               <Settings size={16} /> 管理固定支出
             </button>
