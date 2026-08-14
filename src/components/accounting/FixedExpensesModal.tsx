@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Loader2, Archive, Check } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, Archive, Check, Edit2, Save } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { getFixedExpenses, saveFixedExpenses } from '../../lib/accountingSync';
 import type { FixedExpense } from '../../lib/accountingSync';
@@ -25,6 +25,10 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
   const [amount, setAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [deductionDate, setDeductionDate] = useState('');
+
+  // Edit State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<FixedExpense>>({});
 
   useEffect(() => {
     if (isOpen && token && folderId) {
@@ -107,6 +111,19 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
     } else if (endDate) {
       alert('格式錯誤，請輸入 YYYY-MM');
     }
+  };
+
+  const startEdit = (expense: FixedExpense) => {
+    setEditingId(expense.id);
+    setEditForm(expense);
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const updated = expenses.map(e => e.id === editingId ? { ...e, ...editForm } as FixedExpense : e);
+    setExpenses(updated);
+    setEditingId(null);
+    await autoSave(updated);
   };
 
   const sortedExpenses = [...expenses].sort((a, b) => {
@@ -241,6 +258,28 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
           ) : (
             sortedExpenses.map(expense => {
               const isStopped = !!expense.endDate;
+              const isEditing = editingId === expense.id;
+              
+              if (isEditing) {
+                return (
+                  <div key={expense.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input type="text" className="input-field" placeholder="分類" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} style={{ flex: 1 }} />
+                      <input type="number" className="input-field" placeholder="金額" value={editForm.amount} onChange={e => setEditForm({...editForm, amount: Number(e.target.value)})} style={{ flex: 1 }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <input type="text" className="input-field" placeholder="備註" value={editForm.note} onChange={e => setEditForm({...editForm, note: e.target.value})} style={{ flex: 2, minWidth: '100px' }} />
+                      <input type="month" className="input-field" value={editForm.startDate || ''} onChange={e => setEditForm({...editForm, startDate: e.target.value})} style={{ flex: 1, minWidth: '110px' }} />
+                      <input type="number" className="input-field" placeholder="1-31日" value={editForm.deductionDate || ''} onChange={e => setEditForm({...editForm, deductionDate: Number(e.target.value)})} style={{ width: '70px' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem' }}>
+                      <button onClick={() => setEditingId(null)} className="btn btn-ghost" style={{ padding: '0.3rem 0.6rem' }}>取消</button>
+                      <button onClick={saveEdit} className="btn btn-primary" style={{ padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Save size={14}/> 儲存</button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={expense.id} style={{ 
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', 
@@ -259,6 +298,15 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <span style={{ color: 'var(--danger)', fontWeight: 'bold', fontSize: '1.1rem' }}>${expense.amount.toLocaleString()}</span>
+                    <button 
+                      onClick={() => startEdit(expense)}
+                      className="btn btn-ghost" 
+                      style={{ padding: '0.25rem' }}
+                      title="編輯此支出"
+                      disabled={isStopped}
+                    >
+                      <Edit2 size={16} color={isStopped ? "gray" : "var(--primary)"} />
+                    </button>
                     <button 
                       onClick={() => handleStop(expense.id)}
                       className="btn btn-ghost" 
