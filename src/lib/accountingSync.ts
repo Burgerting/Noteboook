@@ -14,6 +14,14 @@ export interface AccountingRecord {
   isDeleted?: boolean;
 }
 
+export interface ChartOption {
+  id: string;
+  keyword: string;
+  matchType: 'category' | 'note';
+  enabled: boolean;
+}
+
+
 // Generate filename based on date (e.g., "2026-07-accounting.json")
 export function getMonthFileName(dateStr: string) {
   const [year, month] = dateStr.split('-');
@@ -295,19 +303,43 @@ export async function syncCreditCards(
   return mergedRecords;
 }
 
-export async function getChartOptions(token: string, folderId: string): Promise<string[]> {
+export async function getChartOptions(token: string, folderId: string): Promise<ChartOption[]> {
+  const defaultOptions: ChartOption[] = [
+    { id: 'def-1', keyword: '汽車加油', matchType: 'note', enabled: true },
+    { id: 'def-2', keyword: '機車加油', matchType: 'note', enabled: true },
+    { id: 'def-3', keyword: '小孩', matchType: 'category', enabled: true }
+  ];
+
   const files = await listFilesInFolder(token, folderId);
   const fileInfo = files.find(f => f.name === 'chart_options.json');
-  if (!fileInfo) return ['汽車加油', '機車加油', '小孩'];
+  if (!fileInfo) return defaultOptions;
+  
   const content = await readFileContent(token, fileInfo.id);
-  try { return JSON.parse(content); } catch (e) { return ['汽車加油', '機車加油', '小孩']; }
+  try { 
+    const parsed = JSON.parse(content); 
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Migrate old string arrays
+      if (typeof parsed[0] === 'string') {
+        return parsed.map((str: string, idx: number) => ({
+          id: `migrated-${idx}`,
+          keyword: str,
+          matchType: (str === '汽車加油' || str === '機車加油') ? 'note' : 'category',
+          enabled: true
+        }));
+      }
+      return parsed as ChartOption[];
+    }
+    return defaultOptions;
+  } catch (e) { 
+    return defaultOptions; 
+  }
 }
 
-export async function saveChartOptions(token: string, folderId: string, options: string[]) {
+export async function saveChartOptions(token: string, folderId: string, options: ChartOption[]) {
   const fileName = 'chart_options.json';
   const files = await listFilesInFolder(token, folderId);
   const fileInfo = files.find(f => f.name === fileName);
-  const jsonStr = JSON.stringify(options);
+  const jsonStr = JSON.stringify(options, null, 2);
   if (fileInfo) {
     await updateFile(token, fileInfo.id, jsonStr, 'application/json');
   } else {

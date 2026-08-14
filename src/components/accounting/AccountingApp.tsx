@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
 import { syncAllAccountingRecords, saveMonthAccountingRecords, getFixedExpenses, getInstallments, getChartOptions, saveChartOptions } from '../../lib/accountingSync';
+import type { ChartOption } from '../../lib/accountingSync';
+import EditRecordModal from './EditRecordModal';
 import type { FixedExpense, Installment } from '../../lib/accountingSync';
 import type { AccountingRecord } from '../../lib/accountingSync';
 import { PieChart as RePieChart, Pie, Cell, Tooltip as PieTooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip as LineTooltip } from 'recharts';
-import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
+import { Trash2, TrendingUp, TrendingDown, RefreshCw, ChevronDown, ChevronRight, FilterX, Plus, Settings, Edit2 } from 'lucide-react';
 import FixedExpensesModal from './FixedExpensesModal';
 import InstallmentsModal from './InstallmentsModal';
 import CreditCardTab from './CreditCardTab';
@@ -23,8 +25,10 @@ export default function AccountingApp() {
   const [records, setRecords] = useState<AccountingRecord[]>([]);
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
-  const [chartOptions, setChartOptions] = useState<string[]>(['汽車加油', '機車加油', '小孩']);
+  const [chartOptions, setChartOptions] = useState<ChartOption[]>([]);
   const [newChartOption, setNewChartOption] = useState('');
+  const [newOptionMatchType, setNewOptionMatchType] = useState<'category'|'note'>('note');
+  const [editingRecord, setEditingRecord] = useState<AccountingRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFixedExpensesModalOpen, setIsFixedExpensesModalOpen] = useState(false);
   const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false);
@@ -221,8 +225,21 @@ export default function AccountingApp() {
   const generalRecords = filteredActiveRecords.filter(r => !r.isFixed && !r.isCreditCard);
   const fixedRecords = filteredActiveRecords.filter(r => r.isFixed);
   
-  const displayGeneralRecords = selectedCategory ? generalRecords.filter(r => r.category === selectedCategory) : generalRecords;
-  const displayFixedRecords = selectedCategory ? fixedRecords.filter(r => r.category === selectedCategory) : fixedRecords;
+  
+  const enabledOptions = chartOptions.filter(o => o.enabled);
+  const filterByChartOptions = (r: AccountingRecord) => {
+    if (selectedCategory) return r.category === selectedCategory;
+    if (enabledOptions.length === 0) return true; // If no options are checked, show all
+    return enabledOptions.some(opt => {
+      if (opt.matchType === 'category') return r.category === opt.keyword;
+      if (opt.matchType === 'note') return r.note && r.note.includes(opt.keyword);
+      return false;
+    });
+  };
+
+  const displayGeneralRecords = generalRecords.filter(filterByChartOptions);
+  const displayFixedRecords = fixedRecords.filter(filterByChartOptions);
+
   
   const sortedGeneralRecords = [...displayGeneralRecords].sort((a, b) => {
     const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -256,6 +273,12 @@ export default function AccountingApp() {
         <span style={{ fontWeight: 'bold', color: r.type === 'income' ? '#ef4444' : '#10b981' }}>
           ${r.amount}
         </span>
+        
+        {!r.isFixed && !r.isCreditCard && (
+          <button type="button" className="btn btn-ghost" style={{ padding: '0.25rem' }} onClick={() => setEditingRecord(r)}>
+            <Edit2 size={16} color="var(--accent-primary)" />
+          </button>
+        )}
         <button type="button" className="btn btn-ghost" style={{ padding: '0.25rem' }} onClick={() => handleDelete(r.id)}>
           <Trash2 size={16} color="var(--danger)" />
         </button>
@@ -281,26 +304,38 @@ export default function AccountingApp() {
     const ym = r.date.substring(0, 7);
     if (!monthMap[ym]) {
       monthMap[ym] = { name: ym };
-      chartOptions.forEach(opt => monthMap[ym][opt] = 0);
+      chartOptions.forEach(opt => { if (opt.enabled) monthMap[ym][opt.keyword] = 0; });
     }
     
     chartOptions.forEach(opt => {
-      if (r.category === opt || (r.note && r.note.includes(opt))) {
-        monthMap[ym][opt] += r.amount;
+      if (!opt.enabled) return;
+      let matched = false;
+      if (opt.matchType === 'category' && r.category === opt.keyword) matched = true;
+      if (opt.matchType === 'note' && r.note && r.note.includes(opt.keyword)) matched = true;
+      
+      if (matched) {
+        if (monthMap[ym][opt.keyword] === undefined) monthMap[ym][opt.keyword] = 0;
+        monthMap[ym][opt.keyword] += r.amount;
       }
     });
   });
-  // Ensure all months have all options defined (even if 0)
+
   Object.values(monthMap).forEach(item => {
     chartOptions.forEach(opt => {
-      if (item[opt] === undefined) item[opt] = 0;
+      if (opt.enabled && item[opt.keyword] === undefined) item[opt.keyword] = 0;
     });
   });
   const lineChartData = Object.values(monthMap).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   const handleAddChartOption = async () => {
-    if (!newChartOption.trim() || chartOptions.includes(newChartOption.trim())) return;
-    const updated = [...chartOptions, newChartOption.trim()];
+    if (!newChartOption.trim() || chartOptions.find(o => o.keyword === newChartOption.trim() && o.matchType === newOptionMatchType)) return;
+    const newOpt: ChartOption = {
+      id: 'opt-' + Date.now(),
+      keyword: newChartOption.trim(),
+      matchType: newOptionMatchType,
+      enabled: true
+    };
+    const updated = [...chartOptions, newOpt];
     setChartOptions(updated);
     setNewChartOption('');
     if (token && folderId) {
@@ -308,11 +343,46 @@ export default function AccountingApp() {
     }
   };
 
-  const handleRemoveChartOption = async (optToRemove: string) => {
-    const updated = chartOptions.filter(o => o !== optToRemove);
+  const handleToggleChartOption = async (id: string) => {
+    const updated = chartOptions.map(o => o.id === id ? { ...o, enabled: !o.enabled } : o);
     setChartOptions(updated);
     if (token && folderId) {
       await saveChartOptions(token, folderId, updated);
+    }
+  };
+
+  const handleRemoveChartOption = async (id: string) => {
+    const updated = chartOptions.filter(o => o.id !== id);
+    setChartOptions(updated);
+    if (token && folderId) {
+      await saveChartOptions(token, folderId, updated);
+    }
+  };
+
+  const handleSaveEdit = async (updatedRecord: AccountingRecord) => {
+    const oldRecord = records.find(r => r.id === updatedRecord.id);
+    if (!oldRecord) return;
+    
+    updatedRecord.timestamp = Date.now();
+    const newRecords = records.map(r => r.id === updatedRecord.id ? updatedRecord : r);
+    setRecords(newRecords);
+    setEditingRecord(null);
+    
+    if (token && folderId) {
+      const oldMonth = oldRecord.date.substring(0, 7);
+      const newMonth = updatedRecord.date.substring(0, 7);
+      
+      if (oldMonth === newMonth) {
+        const targetMonthRecords = newRecords.filter(r => r.date.startsWith(oldMonth));
+        await saveMonthAccountingRecords(token, folderId, oldMonth, targetMonthRecords);
+      } else {
+        const oldMonthRecordsToSave = newRecords.filter(r => r.date.startsWith(oldMonth));
+        oldMonthRecordsToSave.push({ ...oldRecord, isDeleted: true, timestamp: Date.now() }); 
+        await saveMonthAccountingRecords(token, folderId, oldMonth, oldMonthRecordsToSave);
+        
+        const newMonthRecords = newRecords.filter(r => r.date.startsWith(newMonth));
+        await saveMonthAccountingRecords(token, folderId, newMonth, newMonthRecords);
+      }
     }
   };
 
@@ -447,6 +517,7 @@ export default function AccountingApp() {
             </form>
           )}
         </div>
+
         {/* Date Range Filter */}
         <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 'bold' }}>統計區間：</span>
@@ -532,24 +603,29 @@ export default function AccountingApp() {
       <div className="dashboard-stats">
         
         
-        <div className="glass-panel accounting-chart-box" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: '400px' }}>
+        <div className="glass-panel accounting-chart-box" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: '400px', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <h3 style={{ margin: 0 }}>自訂月度花費趨勢</h3>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input type="text" className="input-field" placeholder="新增追蹤 (例: 旅遊)" value={newChartOption} onChange={e => setNewChartOption(e.target.value)} style={{ width: '140px', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} />
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <select className="input-field" value={newOptionMatchType} onChange={e => setNewOptionMatchType(e.target.value as 'category'|'note')} style={{ padding: '0.25rem', fontSize: '0.85rem' }}>
+                <option value="note">比對備註</option>
+                <option value="category">比對分類</option>
+              </select>
+              <input type="text" className="input-field" placeholder="新增追蹤 (例: 旅遊)" value={newChartOption} onChange={e => setNewChartOption(e.target.value)} style={{ width: '130px', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} />
               <button className="btn btn-primary" onClick={handleAddChartOption} style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}>新增</button>
             </div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {chartOptions.map((opt, i) => (
-              <span key={opt} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '1rem', fontSize: '0.8rem' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[i % COLORS.length] }} />
-                {opt}
-                <button onClick={() => handleRemoveChartOption(opt)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, marginLeft: '0.25rem' }}>&times;</button>
-              </span>
+              <label key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '1rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={opt.enabled} onChange={() => handleToggleChartOption(opt.id)} style={{ margin: 0 }} />
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.enabled ? COLORS[i % COLORS.length] : 'gray' }} />
+                <span style={{ color: opt.enabled ? 'inherit' : 'gray' }}>{opt.keyword} ({opt.matchType === 'category' ? '分類' : '備註'})</span>
+                <button type="button" onClick={(e) => { e.preventDefault(); handleRemoveChartOption(opt.id); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, marginLeft: '0.25rem' }}>&times;</button>
+              </label>
             ))}
           </div>
-          {lineChartData.length > 0 ? (
+          {lineChartData.length > 0 && chartOptions.some(o => o.enabled) ? (
             <div style={{ flex: 1, minHeight: '300px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -558,14 +634,14 @@ export default function AccountingApp() {
                   <YAxis stroke="var(--text-secondary)" fontSize={12} width={60} tickFormatter={(value) => `$${value}`} />
                   <LineTooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem' }} />
                   <Legend wrapperStyle={{ fontSize: '0.85rem' }} />
-                  {chartOptions.map((opt, i) => (
-                    <Line key={opt} type="monotone" dataKey={opt} stroke={COLORS[i % COLORS.length]} strokeWidth={2} activeDot={{ r: 6 }} />
+                  {chartOptions.filter(o => o.enabled).map((opt) => (
+                    <Line key={opt.id} type="monotone" dataKey={opt.keyword} stroke={COLORS[chartOptions.findIndex(o => o.id === opt.id) % COLORS.length]} strokeWidth={2} activeDot={{ r: 6 }} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>尚無資料</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>請勾選上方項目來顯示趨勢</div>
           )}
         </div>
 
@@ -630,6 +706,14 @@ export default function AccountingApp() {
       <CreditCardTab />
     )}
 
+            {editingRecord && (
+        <EditRecordModal 
+          isOpen={true} 
+          onClose={() => setEditingRecord(null)} 
+          record={editingRecord} 
+          onSave={handleSaveEdit} 
+        />
+      )}
       {token && folderId && (
         <FixedExpensesModal 
           isOpen={isFixedExpensesModalOpen}
