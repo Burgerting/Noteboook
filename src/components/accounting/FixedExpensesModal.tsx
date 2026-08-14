@@ -291,7 +291,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                       <span>{expense.note}</span>
                       {expense.startDate && <span style={{ marginLeft: '8px', color: 'var(--accent-primary)', fontSize: '0.75rem' }}>起始: {expense.startDate}</span>}
-                      {expense.deductionDate && <span style={{ marginLeft: '8px', color: 'var(--primary)', fontSize: '0.75rem' }}>每月 {expense.deductionDate} 日扣款</span>}
+                      {expense.deductionDate && <span style={{ marginLeft: '8px', color: 'var(--accent-primary)', fontSize: '0.75rem' }}>每月 {expense.deductionDate} 日扣款</span>}
                       {isStopped && <span style={{ marginLeft: '8px', color: 'var(--warning)', fontSize: '0.75rem' }}>(已於 {expense.endDate} 停止)</span>}
                       {expense.creator && <span style={{ marginLeft: '8px', color: 'var(--accent-primary)', fontSize: '0.75rem', border: '1px solid var(--accent-primary)', padding: '0 4px', borderRadius: '4px' }}>@{expense.creator}</span>}
                     </div>
@@ -305,7 +305,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
                       title="編輯此支出"
                       disabled={isStopped}
                     >
-                      <Edit2 size={16} color={isStopped ? "gray" : "var(--primary)"} />
+                      <Edit2 size={16} color={isStopped ? "gray" : "var(--accent-primary)"} />
                     </button>
                     <button 
                       onClick={() => handleStop(expense.id)}
