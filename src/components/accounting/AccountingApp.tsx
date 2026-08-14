@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
-import { syncAllAccountingRecords, saveMonthAccountingRecords, getFixedExpenses, getInstallments } from '../../lib/accountingSync';
+import { syncAllAccountingRecords, saveMonthAccountingRecords, getFixedExpenses, getInstallments, getChartOptions, saveChartOptions } from '../../lib/accountingSync';
 import type { FixedExpense, Installment } from '../../lib/accountingSync';
 import type { AccountingRecord } from '../../lib/accountingSync';
-import { PieChart as RePieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart as RePieChart, Pie, Cell, Tooltip as PieTooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, Tooltip as LineTooltip } from 'recharts';
 import { Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, Settings, FilterX, ChevronDown, ChevronRight } from 'lucide-react';
 import FixedExpensesModal from './FixedExpensesModal';
 import InstallmentsModal from './InstallmentsModal';
@@ -23,6 +23,8 @@ export default function AccountingApp() {
   const [records, setRecords] = useState<AccountingRecord[]>([]);
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [chartOptions, setChartOptions] = useState<string[]>(['汽車加油', '機車加油', '小孩']);
+  const [newChartOption, setNewChartOption] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFixedExpensesModalOpen, setIsFixedExpensesModalOpen] = useState(false);
   const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false);
@@ -60,6 +62,8 @@ export default function AccountingApp() {
       setFixedExpenses(fixed);
       const insts = await getInstallments(token, folderId);
       setInstallments(insts);
+      const options = await getChartOptions(token, folderId);
+      setChartOptions(options);
     } catch (e) {
       console.error(e);
       alert('同步資料失敗');
@@ -269,6 +273,49 @@ export default function AccountingApp() {
   }, {} as Record<string, number>);
   
   const pieData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
+
+  // Line Chart Data Logic
+  const monthMap: Record<string, any> = {};
+  filteredActiveRecords.forEach(r => {
+    if (r.type !== 'expense') return;
+    const ym = r.date.substring(0, 7);
+    if (!monthMap[ym]) {
+      monthMap[ym] = { name: ym };
+      chartOptions.forEach(opt => monthMap[ym][opt] = 0);
+    }
+    
+    chartOptions.forEach(opt => {
+      if (r.category === opt || (r.note && r.note.includes(opt))) {
+        monthMap[ym][opt] += r.amount;
+      }
+    });
+  });
+  // Ensure all months have all options defined (even if 0)
+  Object.values(monthMap).forEach(item => {
+    chartOptions.forEach(opt => {
+      if (item[opt] === undefined) item[opt] = 0;
+    });
+  });
+  const lineChartData = Object.values(monthMap).sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+  const handleAddChartOption = async () => {
+    if (!newChartOption.trim() || chartOptions.includes(newChartOption.trim())) return;
+    const updated = [...chartOptions, newChartOption.trim()];
+    setChartOptions(updated);
+    setNewChartOption('');
+    if (token && folderId) {
+      await saveChartOptions(token, folderId, updated);
+    }
+  };
+
+  const handleRemoveChartOption = async (optToRemove: string) => {
+    const updated = chartOptions.filter(o => o !== optToRemove);
+    setChartOptions(updated);
+    if (token && folderId) {
+      await saveChartOptions(token, folderId, updated);
+    }
+  };
+
   const displayPieData = selectedCategory ? pieData.filter(d => d.name === selectedCategory) : pieData;
 
   return (
@@ -400,12 +447,6 @@ export default function AccountingApp() {
             </form>
           )}
         </div>
-
-      </div>
-
-      {/* Right Column: Stats */}
-      <div className="dashboard-stats">
-        
         {/* Date Range Filter */}
         <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 'bold' }}>統計區間：</span>
@@ -475,11 +516,56 @@ export default function AccountingApp() {
                     );
                   })}
                 </Pie>
-                <Tooltip formatter={(value) => `$${value}`} />
+                <PieTooltip formatter={(value) => `$${value}`} />
               </RePieChart>
             </ResponsiveContainer>
           ) : (
              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>尚無資料</div>
+          )}
+        </div>
+
+        
+
+      </div>
+
+      {/* Right Column: Stats */}
+      <div className="dashboard-stats">
+        
+        
+        <div className="glass-panel accounting-chart-box" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: '400px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <h3 style={{ margin: 0 }}>自訂月度花費趨勢</h3>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input type="text" className="input-field" placeholder="新增追蹤 (例: 旅遊)" value={newChartOption} onChange={e => setNewChartOption(e.target.value)} style={{ width: '140px', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} />
+              <button className="btn btn-primary" onClick={handleAddChartOption} style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}>新增</button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {chartOptions.map((opt, i) => (
+              <span key={opt} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '1rem', fontSize: '0.8rem' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: COLORS[i % COLORS.length] }} />
+                {opt}
+                <button onClick={() => handleRemoveChartOption(opt)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, marginLeft: '0.25rem' }}>&times;</button>
+              </span>
+            ))}
+          </div>
+          {lineChartData.length > 0 ? (
+            <div style={{ flex: 1, minHeight: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickMargin={10} />
+                  <YAxis stroke="var(--text-secondary)" fontSize={12} width={60} tickFormatter={(value) => `$${value}`} />
+                  <LineTooltip contentStyle={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem' }} />
+                  <Legend wrapperStyle={{ fontSize: '0.85rem' }} />
+                  {chartOptions.map((opt, i) => (
+                    <Line key={opt} type="monotone" dataKey={opt} stroke={COLORS[i % COLORS.length]} strokeWidth={2} activeDot={{ r: 6 }} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>尚無資料</div>
           )}
         </div>
 

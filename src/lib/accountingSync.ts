@@ -294,3 +294,23 @@ export async function syncCreditCards(
 
   return mergedRecords;
 }
+
+export async function getChartOptions(token: string, folderId: string): Promise<string[]> {
+  const files = await listFilesInFolder(token, folderId);
+  const fileInfo = files.find(f => f.name === 'chart_options.json');
+  if (!fileInfo) return ['汽車加油', '機車加油', '小孩'];
+  const content = await readFileContent(token, fileInfo.id);
+  try { return JSON.parse(content); } catch (e) { return ['汽車加油', '機車加油', '小孩']; }
+}
+
+export async function saveChartOptions(token: string, folderId: string, options: string[]) {
+  const fileName = 'chart_options.json';
+  const files = await listFilesInFolder(token, folderId);
+  const fileInfo = files.find(f => f.name === fileName);
+  const jsonStr = JSON.stringify(options);
+  if (fileInfo) {
+    await updateFile(token, fileInfo.id, jsonStr, 'application/json');
+  } else {
+    await createFile(token, folderId, fileName, jsonStr, 'application/json');
+  }
+}
