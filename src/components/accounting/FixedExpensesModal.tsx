@@ -20,6 +20,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
   const [error, setError] = useState('');
 
   // Form State
+  const [type, setType] = useState<'expense'|'income'>('expense');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [amount, setAmount] = useState('');
@@ -87,6 +88,7 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
     setNote('');
     setAmount('');
     setDeductionDate('');
+      setType('expense');
     
     // Auto save immediately
     await autoSave(updated);
@@ -186,6 +188,10 @@ export default function FixedExpensesModal({ isOpen, onClose, token, folderId }:
         {/* Add Form */}
         <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <select className="input-field" value={type} onChange={e => setType(e.target.value as any)} style={{ width: '80px', padding: '0.4rem' }}>
+              <option value="expense">支出</option>
+              <option value="income">收入</option>
+            </select>
             <input 
               type="text" 
               className="input-field" 

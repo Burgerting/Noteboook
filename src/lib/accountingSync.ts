@@ -159,6 +159,7 @@ export async function syncAccountingRecords(
 
 export interface FixedExpense {
   id: string;
+  type?: 'income' | 'expense';
   category: string;
   note: string;
   amount: number;

@@ -136,11 +136,35 @@ export default function AccountingApp() {
 
   // Dynamic Generation of Fixed Expenses & Installments
   const dynamicFixedRecords: AccountingRecord[] = [];
-  const targetMonths = currentMonth ? [currentMonth] : Array.from(new Set(records.map(r => r.date.substring(0, 7)))).sort();
-  
-  if (targetMonths.length === 0) {
-    const today = new Date();
-    targetMonths.push(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+  let targetMonths: string[] = [];
+  if (currentMonth) {
+    targetMonths = [currentMonth];
+  } else {
+    // Generate all months between the earliest record/fixedExpense and today (or latest record/fixedExpense)
+    const allMonths = new Set(records.map(r => r.date.substring(0, 7)));
+    fixedExpenses.forEach(f => {
+      if (f.startDate) allMonths.add(f.startDate);
+      if (f.endDate) allMonths.add(f.endDate);
+    });
+    installments.forEach(i => {
+      if (i.startDate) allMonths.add(i.startDate);
+    });
+    const todayYm = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    allMonths.add(todayYm);
+    
+    const sorted = Array.from(allMonths).sort();
+    if (sorted.length > 0) {
+      const minDate = new Date(sorted[0] + '-01');
+      const maxDate = new Date(sorted[sorted.length - 1] + '-01');
+      
+      const iterDate = new Date(minDate);
+      while (iterDate <= maxDate) {
+        targetMonths.push(`${iterDate.getFullYear()}-${String(iterDate.getMonth() + 1).padStart(2, '0')}`);
+        iterDate.setMonth(iterDate.getMonth() + 1);
+      }
+    } else {
+      targetMonths.push(todayYm);
+    }
   }
   
   for (const ym of targetMonths) {
@@ -151,7 +175,7 @@ export default function AccountingApp() {
       dynamicFixedRecords.push({
         id: `fixed-${f.id}-${ym}`,
         date: `${ym}-${day}`,
-        type: 'expense',
+        type: f.type || 'expense',
         amount: f.amount,
         category: f.category,
         note: f.note,
