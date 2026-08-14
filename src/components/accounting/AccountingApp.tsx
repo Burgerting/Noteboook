@@ -603,7 +603,7 @@ export default function AccountingApp() {
       <div className="dashboard-stats">
         
         
-        <div className="glass-panel accounting-chart-box" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: '400px', marginBottom: '1.5rem' }}>
+        <div className="glass-panel accounting-chart-box" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: '420px', flexShrink: 0, marginBottom: '1.5rem', overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <h3 style={{ margin: 0 }}>自訂月度花費趨勢</h3>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -626,7 +626,7 @@ export default function AccountingApp() {
             ))}
           </div>
           {lineChartData.length > 0 && chartOptions.some(o => o.enabled) ? (
-            <div style={{ flex: 1, minHeight: '300px' }}>
+            <div style={{ flex: 1, minHeight: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
