@@ -324,7 +324,6 @@ export default function AccountingApp() {
   // Line Chart Data Logic
   const monthMap: Record<string, any> = {};
   filteredActiveRecords.forEach(r => {
-    if (r.type !== 'expense') return;
     const ym = r.date.substring(0, 7);
     if (!monthMap[ym]) {
       monthMap[ym] = { name: ym };
