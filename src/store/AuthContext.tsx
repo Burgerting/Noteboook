@@ -141,11 +141,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setPersonalFolderId(null);
     setActiveFolderId(null);
-    // setSharedFoldersState([]);
-    localStorage.removeItem('personal_folder_id');
-    localStorage.removeItem('active_folder_id');
-    // localStorage.removeItem('shared_folders');
-    // NOTE: We do not clear shared folders on logout so they persist for the user.
+    setSharedFoldersState([]);
+    localStorage.clear();
   };
 
   return (
