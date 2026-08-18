@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { googleLogout } from '@react-oauth/google';
 
 export interface SharedFolder {
   id: string;
@@ -138,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    googleLogout();
     setToken(null);
     setPersonalFolderId(null);
     setActiveFolderId(null);
