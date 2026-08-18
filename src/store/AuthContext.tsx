@@ -143,8 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setPersonalFolderId(null);
     setActiveFolderId(null);
-    setSharedFoldersState([]);
-    localStorage.clear();
+    
+    // We explicitly only remove session-related data, 
+    // keeping shared_folders and encrypted_national_id intact.
+    localStorage.removeItem('google_token');
+    localStorage.removeItem('google_user_info');
+    localStorage.removeItem('personal_folder_id');
+    localStorage.removeItem('active_folder_id');
   };
 
   return (
