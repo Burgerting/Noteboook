@@ -52,11 +52,6 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
       const subjectHeader = details.payload.headers.find((h: any) => h.name.toLowerCase() === 'subject');
       const dateHeader = details.payload.headers.find((h: any) => h.name.toLowerCase() === 'date');
       const subject = subjectHeader ? subjectHeader.value : '';
-      const emailDate = dateHeader ? new Date(dateHeader.value) : new Date();
-      
-      const yearMonth = `${emailDate.getFullYear()}-${String(emailDate.getMonth() + 1).padStart(2, '0')}`;
-      const snippet = details.snippet || '';
-
       const fromHeader = details.payload.headers.find((h: any) => h.name.toLowerCase() === 'from');
       const fromName = fromHeader ? fromHeader.value : '';
       
@@ -72,6 +67,24 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
       else if (searchStr.includes('台新')) bank = '台新';
       else if (searchStr.includes('玉山')) bank = '玉山';
       else continue; // Skip unknown banks instead of polluting the list with '其他銀行'
+
+      const emailDate = dateHeader ? new Date(dateHeader.value) : new Date();
+      let yearMonth = `${emailDate.getFullYear()}-${String(emailDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Parse Year and Month from subject based on bank formats
+      // Format 1: 2026年8月 (國泰, 永豐, 富邦)
+      const ceMatch = subject.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/);
+      // Format 2: 11508 (中信 - 民國年+月份)
+      const ctbcMatch = subject.match(/(?:電子帳單\s*)?(\d{3})(\d{2})\b/);
+
+      if (ceMatch) {
+        yearMonth = `${ceMatch[1]}-${ceMatch[2].padStart(2, '0')}`;
+      } else if (bank === '中信' && ctbcMatch) {
+        const year = parseInt(ctbcMatch[1], 10) + 1911;
+        yearMonth = `${year}-${ctbcMatch[2].padStart(2, '0')}`;
+      }
+
+      const snippet = details.snippet || '';
 
       // Try to extract amount directly from snippet first (often works for text-heavy emails or auto-deduction notices)
       // Matches: "帳單金額, 63,490" or "應繳總額: 1,234" or "繳款金額 5,678" or "應扣款金額 4990"
