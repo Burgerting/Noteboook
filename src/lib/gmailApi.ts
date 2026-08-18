@@ -20,6 +20,104 @@ async function fetchWithAuth(url: string, token: string) {
   return res.json();
 }
 
+/**
+ * Recursively extracts and decodes text/plain and text/html body parts from a Gmail payload
+ */
+function extractEmailBodyText(payload: any): string {
+  let text = '';
+
+  const extractFromPart = (part: any) => {
+    if (!part) return;
+    if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
+      if (part.body && part.body.data) {
+        try {
+          const binaryString = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          text += ' ' + new TextDecoder('utf-8').decode(bytes);
+        } catch {
+          // ignore decoding errors
+        }
+      }
+    }
+    if (part.parts) {
+      for (const p of part.parts) {
+        extractFromPart(p);
+      }
+    }
+  };
+
+  if (payload.body && payload.body.data) {
+    try {
+      const binaryString = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      text += ' ' + new TextDecoder('utf-8').decode(bytes);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (payload.parts) {
+    for (const p of payload.parts) {
+      extractFromPart(p);
+    }
+  }
+
+  return text;
+}
+
+/**
+ * Extracts billing amount from raw text or HTML, strictly prioritized to avoid capturing
+ * dates (e.g. 115/08/09), ROC year numbers (115年), or minimum payment amounts.
+ */
+export function parseAmountFromText(rawText: string): number | null {
+  if (!rawText) return null;
+
+  // Clean HTML tags, styles, scripts and normalize spaces
+  const clean = rawText
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#160;/gi, ' ')
+    .replace(/\s+/g, ' ');
+
+  // Ordered strictly from most specific / high-confidence to general
+  const regexes = [
+    /本期應繳總金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /本期應繳總額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /當期應繳金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /當期帳單金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /本期結帳金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /結帳總金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /本期應繳金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /本期應繳款[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /應扣款金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /帳單金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /(?<!最低)應繳總額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /(?<!最低)應繳總金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /(?<!最低)應繳金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i,
+    /繳款金額[^0-9\-]*(-?[\d,]+(?:\.\d+)?)(?![\/\-年月日])/i
+  ];
+
+  for (const r of regexes) {
+    const match = clean.match(r);
+    if (match) {
+      const amt = parseInt(match[1].replace(/,/g, ''), 10);
+      if (!isNaN(amt) && amt > 0) {
+        return amt;
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function fetchRecentCreditCardEmails(token: string, nationalId: string, targetYearMonth?: string): Promise<ParsedBill[]> {
   // We search for recent emails with relevant subjects
   let query = 'subject:(電子帳單 OR 信用卡 OR 自動扣繳)';
@@ -72,38 +170,43 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
       let yearMonth = `${emailDate.getFullYear()}-${String(emailDate.getMonth() + 1).padStart(2, '0')}`;
       
       // Parse Year and Month from subject based on bank formats
-      // Format 1: 2026年8月 (國泰, 永豐, 富邦)
       const ceMatch = subject.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/);
-      // Format 2: 11508 (中信 - 民國年+月份)
+      const rocMatch = subject.match(/(\d{2,3})\s*年\s*(\d{1,2})\s*月/);
       const ctbcMatch = subject.match(/(?:電子帳單\s*)?(\d{3})(\d{2})\b/);
+      const dateSlashMatch = subject.match(/(\d{4})[\/\-](\d{1,2})/);
+      const rocSlashMatch = subject.match(/(\d{2,3})[\/\-](\d{1,2})/);
 
       if (ceMatch) {
         yearMonth = `${ceMatch[1]}-${ceMatch[2].padStart(2, '0')}`;
-      } else if (bank === '中信' && ctbcMatch) {
-        const year = parseInt(ctbcMatch[1], 10) + 1911;
-        yearMonth = `${year}-${ctbcMatch[2].padStart(2, '0')}`;
+      } else if (rocMatch && parseInt(rocMatch[1], 10) < 1900) {
+        const y = parseInt(rocMatch[1], 10) + 1911;
+        yearMonth = `${y}-${rocMatch[2].padStart(2, '0')}`;
+      } else if (ctbcMatch && parseInt(ctbcMatch[1], 10) < 1900) {
+        const y = parseInt(ctbcMatch[1], 10) + 1911;
+        yearMonth = `${y}-${ctbcMatch[2].padStart(2, '0')}`;
+      } else if (dateSlashMatch) {
+        yearMonth = `${dateSlashMatch[1]}-${dateSlashMatch[2].padStart(2, '0')}`;
+      } else if (rocSlashMatch && parseInt(rocSlashMatch[1], 10) < 1900) {
+        const y = parseInt(rocSlashMatch[1], 10) + 1911;
+        yearMonth = `${y}-${rocSlashMatch[2].padStart(2, '0')}`;
       }
 
       const snippet = details.snippet || '';
+      const bodyText = extractEmailBodyText(details.payload);
+      const combinedEmailText = `${snippet} ${bodyText}`;
 
-      // Try to extract amount directly from snippet first (often works for text-heavy emails or auto-deduction notices)
-      // Matches: "帳單金額, 63,490" or "應繳總額: 1,234" or "繳款金額 5,678" or "應扣款金額 4990"
-      const snippetAmountMatch = snippet.match(/(?:帳單金額|應繳總額|繳款金額|本期應繳金?額?|應扣款金額)[:,\s]*\$?(-?[\d,]+)/);
-      if (snippetAmountMatch) {
-        const amount = parseInt(snippetAmountMatch[1].replace(/,/g, ''), 10);
-        if (amount > 0) {
-          console.log(`[Gmail Debug] (${bank}) 從預覽文字抓到金額: ${amount} | 原文: ${snippet}`);
-          results.push({ bank, yearMonth, amount, needsManualAmount: false });
-        } else {
-          console.log(`[Gmail Debug] (${bank}) 從預覽文字抓到金額為 0，略過不紀錄 | 原文: ${snippet}`);
-        }
+      // 1. Try to extract amount directly from email text/HTML content or snippet
+      const emailAmount = parseAmountFromText(combinedEmailText);
+      if (emailAmount !== null && emailAmount > 0) {
+        console.log(`[Gmail Debug] (${bank}) 從郵件內容抓到金額: ${emailAmount}`);
+        results.push({ bank, yearMonth, amount: emailAmount, needsManualAmount: false });
         continue;
       } else {
-        console.log(`[Gmail Debug] (${bank}) 預覽文字無金額匹配 | 原文: ${snippet}`);
+        console.log(`[Gmail Debug] (${bank}) 郵件文字無金額匹配，嘗試解析 PDF 附件...`);
       }
 
       // 2. Encrypted PDF parsing
-      // Recursively find PDF attachment ID because Gmail API parts can be deeply nested (e.g., multipart/mixed -> multipart/related -> pdf)
+      // Recursively find PDF attachment ID because Gmail API parts can be deeply nested
       let attachmentId = '';
       
       const findPdfAttachment = (parts: any[]) => {
@@ -138,7 +241,7 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
             const passwords = Array.from(new Set([
               nationalId.toUpperCase(),
               nationalId.toLowerCase(),
-              nationalId.replace(/[^0-9]/g, ''), // (3) 數字 (去掉英文字母)
+              nationalId.replace(/[^0-9]/g, ''), // 數字 (去掉英文字母)
               nationalId.slice(-8),              // 身分證後 8 碼
               nationalId
             ]));
@@ -163,59 +266,40 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
 
             if (!pdfDocument) throw lastError;
 
-            
             // Extract text from the first page (usually enough for total amount)
             const page = await pdfDocument.getPage(1);
             const textContent = await page.getTextContent();
             
-            // Remove all spaces to handle fragmented text parsing from PDF (e.g. "應 繳 總 額")
             const fullText = textContent.items.map((item: any) => item.str).join('');
-            const cleanText = fullText.replace(/\s+/g, '');
-            console.log(`[Gmail Debug] (${bank}) PDF 解析文字內容:`, cleanText);
+            const spacedText = textContent.items.map((item: any) => item.str.trim()).filter(Boolean).join(' ');
+            console.log(`[Gmail Debug] (${bank}) PDF 解析文字內容:`, fullText.replace(/\s+/g, ''));
 
-            // Try exact phrases requested by user, then fallbacks
-            // Using [^\\d\\-]* to ensure we don't accidentally consume the negative sign before matching it
-            const regexes = [
-              /本期應繳總金額?[^\d\-]*(-?[\d,]+)/,
-              /當期帳單金額?[^\d\-]*(-?[\d,]+)/,
-              /本期應繳款?[^\d\-]*(-?[\d,]+)/,
-              /帳單金額?[^\d\-]*(-?[\d,]+)/,
-              /應繳總金額?[^\d\-]*(-?[\d,]+)/,
-              /(?:本期結帳金額|結帳總金額|應繳金額)[^\d\-]*(-?[\d,]+)/,
-              /(?<!最低)應繳(?:款|總額|金額)[^\d\-]*(-?[\d,]+)/,
-              /總計[^\d\-]*(-?[\d,]+)/
-            ];
-            
-            let amountMatch = null;
-            for (const r of regexes) {
-              amountMatch = cleanText.match(r);
-              if (amountMatch) break;
-            }
+            let pdfAmount = parseAmountFromText(fullText) || parseAmountFromText(spacedText);
 
             // Fallback for PDF with missing CJK fonts (like CTBC sometimes)
-            if (!amountMatch) {
-              const spacedText = textContent.items.map((item: any) => item.str.trim()).filter(Boolean).join(' ');
+            if (pdfAmount === null) {
               console.log(`[Gmail Debug] (${bank}) PDF 解析帶空白內容 (Fallback):`, spacedText);
               const fallbackRegexes = [
-                // 找日期 (例如 115/08/25 或 2026/08/25) 後面緊接的第一個數字區塊 (通常是本期應繳總金額)
-                /11\d\/\d{2}\/\d{2}\s+(-?[\d,]+)/,
-                /20\d{2}\/\d{2}\/\d{2}\s+(-?[\d,]+)/
+                /(?:11\d|20\d{2})[\/\-]\d{2}[\/\-]\d{2}\s+(-?[\d,]+(?:\.\d+)?)/
               ];
               for (const r of fallbackRegexes) {
-                amountMatch = spacedText.match(r);
-                if (amountMatch) break;
+                const match = spacedText.match(r);
+                if (match) {
+                  const amt = parseInt(match[1].replace(/,/g, ''), 10);
+                  if (!isNaN(amt) && amt > 0) {
+                    pdfAmount = amt;
+                    break;
+                  }
+                }
               }
             }
 
-            if (amountMatch) {
-              const amount = parseInt(amountMatch[1].replace(/,/g, ''), 10);
-              if (amount > 0) {
-                results.push({ bank, yearMonth, amount, needsManualAmount: false });
-              } else {
-                console.log(`[Gmail Debug] (${bank}) PDF 解析金額為 0，略過不紀錄`);
-              }
+            if (pdfAmount !== null && pdfAmount > 0) {
+              console.log(`[Gmail Debug] (${bank}) PDF 成功解析金額: ${pdfAmount}`);
+              results.push({ bank, yearMonth, amount: pdfAmount, needsManualAmount: false });
             } else {
               // Could open PDF but couldn't parse amount reliably
+              console.log(`[Gmail Debug] (${bank}) PDF 無法自動識別金額，需手動填寫`);
               results.push({ bank, yearMonth, amount: null, needsManualAmount: true });
             }
             continue;
@@ -228,7 +312,7 @@ export async function fetchRecentCreditCardEmails(token: string, nationalId: str
         }
       }
 
-      // Fallback if no PDF found but it's a known bank bill
+      // Fallback if no PDF found and no amount in email text
       results.push({ bank, yearMonth, amount: null, needsManualAmount: true });
       
     } catch (e) {
